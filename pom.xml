@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IKE Network — Knowledge Provider
+  ════════════════════════════════
+
+  The chronology-store implementation of the IKE knowledge-pipeline SPI
+  (network.ike.tooling:ike-knowledge-spi; IKE-Network/ike-issues#850, #856).
+  This artifact is the stable IKE-named provider consumers depend on —
+  directly or via ike-parent's default wiring — while the engine libraries
+  underneath keep names that are free to migrate. It carries SPI adaptation
+  and orchestration only; engine-generic capabilities stay in the engine.
+
+  Incubates in the ike-komet-wsr꞉chronology-builder workspace while it
+  depends on the sibling-only engine snapshot; graduates to a top-level
+  foundation sibling at branch merge.
+-->
+<project xmlns="http://maven.apache.org/POM/4.1.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.1.0 https://maven.apache.org/xsd/maven-4.1.0.xsd">
+    <modelVersion>4.1.0</modelVersion>
+
+    <parent>
+        <groupId>network.ike.platform</groupId>
+        <artifactId>ike-parent</artifactId>
+        <version>131</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>network.ike.knowledge</groupId>
+    <artifactId>ike-knowledge-provider</artifactId>
+    <version>1-chronology-builder-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>IKE Knowledge Provider</name>
+    <description>
+        Chronology-store implementation of the IKE knowledge-pipeline SPI:
+        ServiceLoader providers for export, assembly, bindings, and verification,
+        composing the engine's capability libraries behind the stable IKE contract.
+    </description>
+    <url>https://ike.network/ike-knowledge-provider/</url>
+    <inceptionYear>2026</inceptionYear>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <organization>
+        <name>IKE Network</name>
+        <url>https://ike.network</url>
+    </organization>
+
+    <distributionManagement>
+        <repository>
+            <id>ike-staging</id>
+            <url>${deploy.staging.url}</url>
+        </repository>
+        <snapshotRepository>
+            <id>ike-snapshots</id>
+            <url>${deploy.snapshot.url}</url>
+        </snapshotRepository>
+        <site>
+            <id>ike-site</id>
+            <url>https://ike.network/ike-knowledge-provider/</url>
+        </site>
+    </distributionManagement>
+
+    <properties>
+        <!-- INTERIM: the sibling-only engine snapshot; realigns to the main-line
+             version when feature/chronology-builder merges. -->
+        <chronology-store.version>1.127.2-chronology-builder-SNAPSHOT</chronology-store.version>
+        <!-- INTERIM: ike-knowledge-spi ships with the next ike-tooling release;
+             pinned to the snapshot until the tooling release cascades. -->
+        <ike-knowledge-spi.version>235-SNAPSHOT</ike-knowledge-spi.version>
+    </properties>
+
+    <dependencies>
+        <!-- The contract this module provides. -->
+        <dependency>
+            <groupId>network.ike.tooling</groupId>
+            <artifactId>ike-knowledge-spi</artifactId>
+            <version>${ike-knowledge-spi.version}</version>
+        </dependency>
+
+        <!-- Engine capability libraries the providers compose. -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>entity</artifactId>
+            <version>${chronology-store.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>common</artifactId>
+            <version>${chronology-store.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>terms</artifactId>
+            <version>${chronology-store.version}</version>
+        </dependency>
+
+        <!-- Store providers at runtime scope; their classpath ServiceLoader
+             registrations live in this module's META-INF/services (the engine
+             providers declare services in module-info only). -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>data-ephemeral-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>entity-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>executor-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.27.3</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Tests compile and run on the classpath (surefire already does via
+                 ike-parent): the module patch would need junit in the module graph,
+                 and the classpath is the seam's real runtime anyway. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- This module uses no annotation processor; the inherited
+                         RecordBuilder processor path fails on test-source
+                         annotations (the known no-compiler-fork limitation). -->
+                    <proc>none</proc>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>default-testCompile</id>
+                        <configuration>
+                            <proc>none</proc>
+                            <useModulePath>false</useModulePath>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
