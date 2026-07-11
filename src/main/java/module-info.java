@@ -9,7 +9,11 @@ module network.ike.knowledge.provider {
     requires dev.ikm.tinkar.entity;
     requires dev.ikm.tinkar.common;
     requires dev.ikm.tinkar.terms;
+    requires dev.ikm.tinkar.reasoner.service;
+    requires org.eclipse.collections.api;
 
     provides network.ike.knowledge.spi.KnowledgeExporter
             with network.ike.knowledge.provider.ChronologyStoreExporter;
+    provides network.ike.knowledge.spi.KnowledgeBaseAssembler
+            with network.ike.knowledge.provider.ChronologyStoreAssembler;
 }

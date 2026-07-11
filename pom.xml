@@ -102,9 +102,35 @@
             <version>${chronology-store.version}</version>
         </dependency>
 
+        <!-- Classification: the service contract at compile scope, the reasoner
+             implementation at runtime. -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>reasoner-service</artifactId>
+            <version>${chronology-store.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>reasoner-elk-snomed</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Store providers at runtime scope; their classpath ServiceLoader
              registrations live in this module's META-INF/services (the engine
              providers declare services in module-info only). -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>data-spinedarray-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>search-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>dev.ikm.tinkar</groupId>
             <artifactId>data-ephemeral-provider</artifactId>
