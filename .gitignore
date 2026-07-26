@@ -3,3 +3,6 @@ target/
 *.iml
 .DS_Store
 **/.claude/standards/
+
+# ike:* goal reports
+ike꞉*.md
