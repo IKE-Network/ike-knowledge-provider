@@ -16,4 +16,6 @@ module network.ike.knowledge.provider {
             with network.ike.knowledge.provider.ChronologyStoreExporter;
     provides network.ike.knowledge.spi.KnowledgeBaseAssembler
             with network.ike.knowledge.provider.ChronologyStoreAssembler;
+    provides network.ike.knowledge.spi.KnowledgeVerifier
+            with network.ike.knowledge.provider.ChronologyStoreVerifier;
 }

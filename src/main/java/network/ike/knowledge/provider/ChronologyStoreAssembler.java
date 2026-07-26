@@ -204,7 +204,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         return report;
     }
 
-    private static void unzipInto(Path zip, Path targetRoot) throws IOException {
+    static void unzipInto(Path zip, Path targetRoot) throws IOException {
         try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry = in.getNextEntry();
             while (entry != null) {
@@ -223,7 +223,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         }
     }
 
-    private static void deleteRecursively(Path root) throws IOException {
+    static void deleteRecursively(Path root) throws IOException {
         Files.walkFileTree(root, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {

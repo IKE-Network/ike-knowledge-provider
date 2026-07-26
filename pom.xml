@@ -72,9 +72,9 @@
         <!-- INTERIM: the sibling-only engine snapshot; realigns to the main-line
              version when feature/chronology-builder merges. -->
         <chronology-store.version>1.127.2-SNAPSHOT</chronology-store.version>
-        <!-- ike-knowledge-spi 238 carries the #933 reasoned-pb export contract
-             this provider implements. -->
-        <ike-knowledge-spi.version>238</ike-knowledge-spi.version>
+        <!-- ike-knowledge-spi 239 ships the #951 verification contract this
+             provider implements; 238 carried the #933 reasoned-pb export. -->
+        <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
     </properties>
 
     <dependencies>
@@ -83,6 +83,17 @@
             <groupId>network.ike.tooling</groupId>
             <artifactId>ike-knowledge-spi</artifactId>
             <version>${ike-knowledge-spi.version}</version>
+        </dependency>
+
+        <!-- Seam-runtime logging binding: the forked seam runs this module on a plain
+             classpath, and without a binding tinkar's WARN/ERROR lines (orphan and
+             dangling-reference accounting) die in the SLF4J NOP logger instead of
+             reaching the [seam] build output (IKE-Network/ike-issues#951).
+             simplelogger.properties pins the level to warn. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Engine capability libraries the providers compose. -->
