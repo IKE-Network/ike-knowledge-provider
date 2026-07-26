@@ -1,10 +1,12 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.common.id.PublicIds;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.common.service.ServiceKeys;
 import dev.ikm.tinkar.common.service.ServiceProperties;
+import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
 import dev.ikm.tinkar.entity.builder.KnowledgeSet;
 import dev.ikm.tinkar.entity.builder.KnowledgeSetSource;
@@ -23,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.ServiceLoader;
+import java.util.UUID;
 
 /**
  * Exports a knowledge set's change-set artifact from its ledger source — the
@@ -37,6 +40,18 @@ import java.util.ServiceLoader;
  * the behavior the deprecated seam main established.
  */
 public final class ChronologyStoreExporter implements KnowledgeExporter {
+
+    /**
+     * The identity of rich-surface-starter-knowledge's "Prose element pattern
+     * (RichSurfaceTerms)" — the pattern every curated {@code koncept-narrative}
+     * semantic is written against (see {@code NarrativeContentSet} in
+     * ike-starter-set). Hardcoded here, not in tinkar-core's generic
+     * {@link KonceptExtractor}: this is an IKE-ecosystem-specific convention,
+     * so the reference belongs at this ecosystem-specific layer
+     * (IKE-Network/ike-issues#879).
+     */
+    private static final UUID NARRATIVE_PATTERN_UUID =
+            UUID.fromString("89b831a1-e773-5f83-87a6-2cfc8e107fb0");
 
     /** Creates the provider (ServiceLoader requirement). */
     public ChronologyStoreExporter() {
@@ -63,7 +78,9 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
                 Optional<Path> konceptsYml = request.konceptsYmlFile();
                 if (konceptsYml.isPresent()) {
                     Files.createDirectories(konceptsYml.get().toAbsolutePath().getParent());
-                    Files.writeString(konceptsYml.get(), KonceptExtractor.extractYaml());
+                    int narrativePatternNid = EntityService.get()
+                            .nidForPublicId(PublicIds.of(NARRATIVE_PATTERN_UUID));
+                    Files.writeString(konceptsYml.get(), KonceptExtractor.extractYaml(narrativePatternNid));
                 }
 
                 return new ExportResult(request.outputFile(),

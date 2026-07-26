@@ -28,7 +28,7 @@
 
     <groupId>network.ike.knowledge</groupId>
     <artifactId>ike-knowledge-provider</artifactId>
-    <version>1-chronology-builder-SNAPSHOT</version>
+    <version>1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>IKE Knowledge Provider</name>
@@ -71,7 +71,7 @@
     <properties>
         <!-- INTERIM: the sibling-only engine snapshot; realigns to the main-line
              version when feature/chronology-builder merges. -->
-        <chronology-store.version>1.127.2-chronology-builder-SNAPSHOT</chronology-store.version>
+        <chronology-store.version>1.127.2-SNAPSHOT</chronology-store.version>
         <!-- INTERIM: ike-knowledge-spi ships with the next ike-tooling release;
              pinned to the snapshot until the tooling release cascades. -->
         <ike-knowledge-spi.version>235-SNAPSHOT</ike-knowledge-spi.version>
@@ -102,9 +102,35 @@
             <version>${chronology-store.version}</version>
         </dependency>
 
+        <!-- Classification: the service contract at compile scope, the reasoner
+             implementation at runtime. -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>reasoner-service</artifactId>
+            <version>${chronology-store.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>reasoner-elk-snomed</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Store providers at runtime scope; their classpath ServiceLoader
              registrations live in this module's META-INF/services (the engine
              providers declare services in module-info only). -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>data-spinedarray-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>search-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>dev.ikm.tinkar</groupId>
             <artifactId>data-ephemeral-provider</artifactId>
