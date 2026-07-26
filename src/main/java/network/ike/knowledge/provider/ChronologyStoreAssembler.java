@@ -9,6 +9,8 @@ import dev.ikm.tinkar.common.service.ServiceProperties;
 import dev.ikm.tinkar.common.service.TrackingCallable;
 import dev.ikm.tinkar.coordinate.Calculators;
 import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
+import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.reasoner.service.ClassifierResults;
 import dev.ikm.tinkar.reasoner.service.ReasonerService;
@@ -75,6 +77,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
             List<LoadSummary> loads = new ArrayList<>();
             Optional<ClassificationSummary> classification;
+            Optional<Path> reasonedPb;
 
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
@@ -98,6 +101,13 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 classification = request.classify()
                         ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER)))
                         : Optional.empty();
+
+                // The reasoned-pb export must see the classified store while it is
+                // still open: full standalone export, inferred semantics included
+                // (IKE-Network/ike-issues#933).
+                reasonedPb = request.reasonedPbFile().isPresent()
+                        ? Optional.of(exportReasonedPb(request.reasonedPbFile().get()))
+                        : Optional.empty();
             } finally {
                 PrimitiveData.stop();
             }
@@ -112,10 +122,30 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 copyRecursively(storeRoot, install);
             }
 
-            return new AssembleResult(loads, classification, Optional.of(report));
+            return new AssembleResult(loads, classification, Optional.of(report), reasonedPb);
         } catch (IOException e) {
             throw new UncheckedIOException("Knowledge-base assembly failed", e);
         }
+    }
+
+    /**
+     * Exports the open, classified store as a full standalone reasoned protobuf — the
+     * {@code reasoned-pb} classifier form: every entity across all time, inferred
+     * semantics included, via the same temporal-aggregator export Komet's own export
+     * controller drives (IKE-Network/ike-issues#933).
+     *
+     * @param file the export file to write
+     * @return the written file
+     * @throws IOException if the parent directory cannot be created
+     */
+    private static Path exportReasonedPb(Path file) throws IOException {
+        Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        new ExportEntitiesToProtobufFile(file.toFile(),
+                new TemporalEntityAggregator(0L, Long.MAX_VALUE)).compute();
+        return file;
     }
 
     /**
