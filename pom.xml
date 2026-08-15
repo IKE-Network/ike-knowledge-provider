@@ -28,7 +28,7 @@
 
     <groupId>network.ike.knowledge</groupId>
     <artifactId>ike-knowledge-provider</artifactId>
-    <version>2-SNAPSHOT</version>
+    <version>2</version>
     <packaging>jar</packaging>
 
     <name>IKE Knowledge Provider</name>
