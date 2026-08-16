@@ -28,7 +28,7 @@
 
     <groupId>network.ike.knowledge</groupId>
     <artifactId>ike-knowledge-provider</artifactId>
-    <version>3-SNAPSHOT</version>
+    <version>3</version>
     <packaging>jar</packaging>
 
     <name>IKE Knowledge Provider</name>
@@ -71,7 +71,7 @@
     <properties>
         <!-- INTERIM: the sibling-only engine snapshot; realigns to the main-line
              version when feature/chronology-builder merges. -->
-        <chronology-store.version>1.127.4-SNAPSHOT</chronology-store.version>
+        <chronology-store.version>1.127.4</chronology-store.version>
         <!-- ike-knowledge-spi 239 ships the #951 verification contract this
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
