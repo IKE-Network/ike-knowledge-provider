@@ -71,7 +71,7 @@
     <properties>
         <!-- INTERIM: the sibling-only engine snapshot; realigns to the main-line
              version when feature/chronology-builder merges. -->
-        <chronology-store.version>1.127.5</chronology-store.version>
+        <chronology-store.version>1.127.6-SNAPSHOT</chronology-store.version>
         <!-- ike-knowledge-spi 239 ships the #951 verification contract this
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
