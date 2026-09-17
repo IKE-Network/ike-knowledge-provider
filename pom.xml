@@ -53,6 +53,13 @@
         <url>https://ike.network</url>
     </organization>
 
+    <scm>
+        <connection>scm:git:https://github.com/IKE-Network/ike-knowledge-provider.git</connection>
+        <developerConnection>scm:git:git@github.com:IKE-Network/ike-knowledge-provider.git</developerConnection>
+        <url>https://github.com/IKE-Network/ike-knowledge-provider</url>
+        <tag>HEAD</tag>
+    </scm>
+
     <distributionManagement>
         <repository>
             <id>ike-staging</id>
