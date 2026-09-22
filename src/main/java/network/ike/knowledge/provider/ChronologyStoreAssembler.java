@@ -8,6 +8,7 @@ import dev.ikm.tinkar.common.service.ServiceKeys;
 import dev.ikm.tinkar.common.service.ServiceProperties;
 import dev.ikm.tinkar.common.service.TrackingCallable;
 import dev.ikm.tinkar.coordinate.Calculators;
+import dev.ikm.tinkar.coordinate.Coordinates;
 import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
 import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
@@ -41,10 +42,11 @@ import java.util.zip.ZipInputStream;
 /**
  * Assembles a knowledge base in a Spined Array store — the chronology-store
  * {@link KnowledgeBaseAssembler}: an optional store-seed layer, ordered entity loads
- * inside the bulk-load bracket, and, by default, a full classification whose inferred
- * axiom and navigation semantics make the assembled KB navigable the moment a browser
- * opens it. Assembling under a data-source directory (the install directory) makes the
- * result directly selectable.
+ * inside the bulk-load bracket, the stated navigation derived from the loaded stated
+ * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
+ * whose inferred axiom and navigation semantics make the assembled KB navigable the
+ * moment a browser opens it. Assembling under a data-source directory (the install
+ * directory) makes the result directly selectable.
  *
  * <p>The view specification's resolution into coordinate records is the resolver
  * increment (IKE-Network/ike-issues#849); classification currently runs under the
@@ -98,6 +100,11 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     EntityService.get().endLoadPhase();
                 }
 
+                // The loaded files carry stated navigation as it stood when they were
+                // written; a ledger that re-declares definitions leaves it stale, and the
+                // reasoner writes inferred navigation only (IKE-Network/ike-issues#1123).
+                StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
+
                 classification = request.classify()
                         ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER)))
                         : Optional.empty();
@@ -132,19 +139,22 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
      * Exports the open, classified store as a full standalone reasoned protobuf — the
      * {@code reasoned-pb} classifier form: every entity across all time, inferred
      * semantics included, via the same temporal-aggregator export Komet's own export
-     * controller drives (IKE-Network/ike-issues#933).
+     * controller drives (IKE-Network/ike-issues#933). All time starts at the earliest
+     * representable instant, not at the epoch: a loaded file's versions stamped before
+     * the epoch are part of the store and belong in its export
+     * (IKE-Network/ike-issues#1123).
      *
      * @param file the export file to write
      * @return the written file
      * @throws IOException if the parent directory cannot be created
      */
-    private static Path exportReasonedPb(Path file) throws IOException {
+    static Path exportReasonedPb(Path file) throws IOException {
         Path parent = file.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
         new ExportEntitiesToProtobufFile(file.toFile(),
-                new TemporalEntityAggregator(0L, Long.MAX_VALUE)).compute();
+                new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE)).compute();
         return file;
     }
 

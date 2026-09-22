@@ -82,6 +82,10 @@
         <!-- ike-knowledge-spi 239 ships the #951 verification contract this
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
+        <!-- The base knowledge file the stated-navigation tests derive over
+             (IKE-Network/ike-issues#1123): the same artifact the starter set's
+             fidelity gate replays against. -->
+        <tinkar-starter-data.version>20251009</tinkar-starter-data.version>
     </properties>
 
     <dependencies>
@@ -183,6 +187,35 @@
 
     <build>
         <plugins>
+            <!-- The base knowledge file the tests load into an ephemeral store
+                 (IKE-Network/ike-issues#1123). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>stage-base-knowledge</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>dev.ikm.data.tinkar</groupId>
+                                    <artifactId>tinkar-starter-data</artifactId>
+                                    <version>${tinkar-starter-data.version}</version>
+                                    <classifier>unreasoned-pb</classifier>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/data</outputDirectory>
+                                    <destFileName>tinkar-starter-data-unreasoned-pb.zip</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <!-- Tests compile and run on the classpath (surefire already does via
                  ike-parent): the module patch would need junit in the module graph,
                  and the classpath is the seam's real runtime anyway. -->
