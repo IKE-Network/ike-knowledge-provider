@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="stylesheet" href="jacoco-resources/ike-theme.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChronologyStoreExporter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><a href="../index.html" style="font-weight:bold;margin-right:8px">← Project Site</a> | <span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IKE Knowledge Provider</a> &gt; <a href="index.source.html" class="el_package">network.ike.knowledge.provider</a> &gt; <span class="el_source">ChronologyStoreExporter.java</span></div><h1>ChronologyStoreExporter.java</h1><pre class="source lang-java linenums">package network.ike.knowledge.provider;
+
+import dev.ikm.tinkar.common.id.PublicIds;
+import dev.ikm.tinkar.common.service.CachingService;
+import dev.ikm.tinkar.common.service.EntityCountSummary;
+import dev.ikm.tinkar.common.service.PrimitiveData;
+import dev.ikm.tinkar.common.service.ServiceKeys;
+import dev.ikm.tinkar.common.service.ServiceProperties;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
+import dev.ikm.tinkar.entity.builder.KnowledgeSet;
+import dev.ikm.tinkar.entity.builder.KnowledgeSetSource;
+import dev.ikm.tinkar.entity.builder.KonceptExtractor;
+import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
+import network.ike.knowledge.spi.EntityCounts;
+import network.ike.knowledge.spi.ExportRequest;
+import network.ike.knowledge.spi.ExportResult;
+import network.ike.knowledge.spi.KnowledgeExporter;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.UUID;
+
+/**
+ * Exports a knowledge set's change-set artifact from its ledger source — the
+ * chronology-store {@link KnowledgeExporter}: discovers the {@link KnowledgeSetSource},
+ * replays the composed session into a fresh in-memory store, exports the store by real
+ * time (which excludes the store's startup sentinel stamp), and optionally extracts the
+ * koncept definitions from the same materialized store — one materialization, both
+ * artifacts.
+ *
+ * &lt;p&gt;The view specification's export dimensions are honored by the resolver increment
+ * (IKE-Network/ike-issues#849); this provider currently exports the whole set, matching
+ * the behavior the deprecated seam main established.
+ */
+public final class ChronologyStoreExporter implements KnowledgeExporter {
+
+    /**
+     * The identity of rich-surface-starter-knowledge's &quot;Prose element pattern
+     * (RichSurfaceTerms)&quot; — the pattern every curated {@code koncept-narrative}
+     * semantic is written against (see {@code NarrativeContentSet} in
+     * ike-starter-set). Hardcoded here, not in tinkar-core's generic
+     * {@link KonceptExtractor}: this is an IKE-ecosystem-specific convention,
+     * so the reference belongs at this ecosystem-specific layer
+     * (IKE-Network/ike-issues#879).
+     */
+<span class="fc" id="L53">    private static final UUID NARRATIVE_PATTERN_UUID =</span>
+<span class="fc" id="L54">            UUID.fromString(&quot;89b831a1-e773-5f83-87a6-2cfc8e107fb0&quot;);</span>
+
+    /** Creates the provider (ServiceLoader requirement). */
+<span class="fc" id="L57">    public ChronologyStoreExporter() {</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public ExportResult export(ExportRequest request) {
+        try {
+<span class="fc" id="L63">            Files.createDirectories(request.outputFile().toAbsolutePath().getParent());</span>
+<span class="fc" id="L64">            Path storeRoot = Files.createTempDirectory(&quot;ike-knowledge-export&quot;);</span>
+
+<span class="fc" id="L66">            CachingService.clearAll();</span>
+<span class="fc" id="L67">            ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());</span>
+<span class="fc" id="L68">            PrimitiveData.selectControllerByName(&quot;Load Ephemeral Store&quot;);</span>
+<span class="fc" id="L69">            PrimitiveData.start();</span>
+            try {
+<span class="fc" id="L71">                KnowledgeSet knowledgeSet = selectSource(request.sourceClass()).compose();</span>
+<span class="fc" id="L72">                knowledgeSet.write();</span>
+
+<span class="fc" id="L74">                EntityCountSummary summary = new ExportEntitiesToProtobufFile(</span>
+<span class="fc" id="L75">                        request.outputFile().toFile(),</span>
+<span class="fc" id="L76">                        new TemporalEntityAggregator(0L, Long.MAX_VALUE)).compute();</span>
+
+<span class="fc" id="L78">                Optional&lt;Path&gt; konceptsYml = request.konceptsYmlFile();</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">                if (konceptsYml.isPresent()) {</span>
+<span class="fc" id="L80">                    Files.createDirectories(konceptsYml.get().toAbsolutePath().getParent());</span>
+<span class="fc" id="L81">                    int narrativePatternNid = EntityService.get()</span>
+<span class="fc" id="L82">                            .nidForPublicId(PublicIds.of(NARRATIVE_PATTERN_UUID));</span>
+<span class="fc" id="L83">                    Files.writeString(konceptsYml.get(), KonceptExtractor.extractYaml(narrativePatternNid));</span>
+                }
+
+<span class="fc" id="L86">                return new ExportResult(request.outputFile(),</span>
+<span class="fc" id="L87">                        new EntityCounts(summary.conceptCount(), summary.semanticCount(),</span>
+<span class="fc" id="L88">                                summary.patternCount(), summary.stampCount()),</span>
+                        konceptsYml);
+            } finally {
+<span class="fc" id="L91">                PrimitiveData.stop();</span>
+            }
+<span class="nc" id="L93">        } catch (IOException e) {</span>
+<span class="nc" id="L94">            throw new UncheckedIOException(&quot;Change-set export failed&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Selects the ledger source: the named class when given, otherwise exactly one
+     * discoverable {@link KnowledgeSetSource}.
+     *
+     * @param sourceClassName the source class name, when several are discoverable
+     * @return the selected source
+     * @throws IllegalStateException if no source or several sources are discoverable
+     *                               without a selection, or the named class cannot be
+     *                               loaded or instantiated
+     */
+    private static KnowledgeSetSource selectSource(Optional&lt;String&gt; sourceClassName) {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (sourceClassName.isPresent()) {</span>
+            try {
+<span class="fc" id="L111">                return (KnowledgeSetSource) Class</span>
+<span class="fc" id="L112">                        .forName(sourceClassName.get(), true,</span>
+<span class="fc" id="L113">                                Thread.currentThread().getContextClassLoader())</span>
+<span class="fc" id="L114">                        .getDeclaredConstructor().newInstance();</span>
+<span class="nc" id="L115">            } catch (ReflectiveOperationException | ClassCastException e) {</span>
+<span class="nc" id="L116">                throw new IllegalStateException(&quot;Cannot instantiate the named ledger source &quot;</span>
+<span class="nc" id="L117">                        + sourceClassName.get(), e);</span>
+            }
+        }
+<span class="nc" id="L120">        List&lt;KnowledgeSetSource&gt; found = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L121">        ServiceLoader.load(KnowledgeSetSource.class, Thread.currentThread().getContextClassLoader())</span>
+<span class="nc" id="L122">                .forEach(found::add);</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if (found.size() != 1) {</span>
+<span class="nc" id="L124">            throw new IllegalStateException(&quot;Expected exactly one KnowledgeSetSource on the classpath, found &quot;</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                    + found.size() + (found.isEmpty() ? &quot;&quot; : &quot;: &quot;</span>
+<span class="nc" id="L126">                    + found.stream().map(source -&gt; source.getClass().getName()).toList())</span>
+                    + &quot; — name the source class in the export request to select one&quot;);
+        }
+<span class="nc" id="L129">        return found.getFirst();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="stylesheet" href="jacoco-resources/ike-theme.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChronologyStoreAssembler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><a href="../index.html" style="font-weight:bold;margin-right:8px">← Project Site</a> | <span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IKE Knowledge Provider</a> &gt; <a href="index.source.html" class="el_package">network.ike.knowledge.provider</a> &gt; <span class="el_source">ChronologyStoreAssembler.java</span></div><h1>ChronologyStoreAssembler.java</h1><pre class="source lang-java linenums">package network.ike.knowledge.provider;
+
+import dev.ikm.tinkar.common.service.CachingService;
+import dev.ikm.tinkar.common.service.EntityCountSummary;
+import dev.ikm.tinkar.common.service.PluggableService;
+import dev.ikm.tinkar.common.service.PrimitiveData;
+import dev.ikm.tinkar.common.service.ServiceKeys;
+import dev.ikm.tinkar.common.service.ServiceProperties;
+import dev.ikm.tinkar.common.service.TrackingCallable;
+import dev.ikm.tinkar.coordinate.Calculators;
+import dev.ikm.tinkar.coordinate.Coordinates;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
+import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
+import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
+import dev.ikm.tinkar.reasoner.service.ClassifierResults;
+import dev.ikm.tinkar.reasoner.service.ReasonerService;
+import dev.ikm.tinkar.terms.TinkarTerm;
+import network.ike.knowledge.spi.ArtifactInput;
+import network.ike.knowledge.spi.AssembleRequest;
+import network.ike.knowledge.spi.AssembleResult;
+import network.ike.knowledge.spi.ClassificationSummary;
+import network.ike.knowledge.spi.EntityCounts;
+import network.ike.knowledge.spi.KnowledgeBaseAssembler;
+import network.ike.knowledge.spi.LoadSummary;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+/**
+ * Assembles a knowledge base in a Spined Array store — the chronology-store
+ * {@link KnowledgeBaseAssembler}: an optional store-seed layer, ordered entity loads
+ * inside the bulk-load bracket, the stated navigation derived from the loaded stated
+ * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
+ * whose inferred axiom and navigation semantics make the assembled KB navigable the
+ * moment a browser opens it. Assembling under a data-source directory (the install
+ * directory) makes the result directly selectable.
+ *
+ * &lt;p&gt;The view specification's resolution into coordinate records is the resolver
+ * increment (IKE-Network/ike-issues#849); classification currently runs under the
+ * engine's default view, matching the headless precedent. The effective view is
+ * reported beside the store root.
+ */
+public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
+
+    private static final String DEFAULT_REASONER = &quot;ElkSnomedReasonerService&quot;;
+
+    /** Creates the provider (ServiceLoader requirement). */
+<span class="nc" id="L61">    public ChronologyStoreAssembler() {</span>
+<span class="nc" id="L62">    }</span>
+
+    @Override
+    public AssembleResult assemble(AssembleRequest request) {
+        try {
+<span class="nc" id="L67">            Path storeRoot = request.storeRoot();</span>
+<span class="nc bnc" id="L68" title="All 4 branches missed.">            if (request.cleanStart() &amp;&amp; Files.exists(storeRoot)) {</span>
+<span class="nc" id="L69">                deleteRecursively(storeRoot);</span>
+            }
+<span class="nc" id="L71">            Files.createDirectories(storeRoot);</span>
+
+<span class="nc" id="L73">            List&lt;ArtifactInput&gt; inputs = request.inputs();</span>
+<span class="nc" id="L74">            int firstLoad = 0;</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if (inputs.getFirst().role() == ArtifactInput.Role.STORE_SEED) {</span>
+<span class="nc" id="L76">                unzipInto(inputs.getFirst().path(), storeRoot);</span>
+<span class="nc" id="L77">                firstLoad = 1;</span>
+            }
+
+<span class="nc" id="L80">            List&lt;LoadSummary&gt; loads = new ArrayList&lt;&gt;();</span>
+            Optional&lt;ClassificationSummary&gt; classification;
+            Optional&lt;Path&gt; reasonedPb;
+
+<span class="nc" id="L84">            CachingService.clearAll();</span>
+<span class="nc" id="L85">            ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());</span>
+<span class="nc" id="L86">            PrimitiveData.selectControllerByName(&quot;Open SpinedArrayStore&quot;);</span>
+<span class="nc" id="L87">            PrimitiveData.start();</span>
+            try {
+<span class="nc" id="L89">                EntityService.get().beginLoadPhase();</span>
+                try {
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                    for (int i = firstLoad; i &lt; inputs.size(); i++) {</span>
+<span class="nc" id="L92">                        ArtifactInput input = inputs.get(i);</span>
+<span class="nc" id="L93">                        EntityCountSummary summary =</span>
+<span class="nc" id="L94">                                new LoadEntitiesFromProtobufFile(input.path().toFile()).compute();</span>
+<span class="nc" id="L95">                        loads.add(new LoadSummary(input.path().getFileName().toString(),</span>
+<span class="nc" id="L96">                                new EntityCounts(summary.conceptCount(), summary.semanticCount(),</span>
+<span class="nc" id="L97">                                        summary.patternCount(), summary.stampCount())));</span>
+                    }
+                } finally {
+<span class="nc" id="L100">                    EntityService.get().endLoadPhase();</span>
+                }
+
+                // The loaded files carry stated navigation as it stood when they were
+                // written; a ledger that re-declares definitions leaves it stale, and the
+                // reasoner writes inferred navigation only (IKE-Network/ike-issues#1123).
+<span class="nc" id="L106">                StatedNavigationDeriver.derive(Coordinates.View.DefaultView());</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                classification = request.classify()</span>
+<span class="nc" id="L109">                        ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER)))</span>
+<span class="nc" id="L110">                        : Optional.empty();</span>
+
+                // The reasoned-pb export must see the classified store while it is
+                // still open: full standalone export, inferred semantics included
+                // (IKE-Network/ike-issues#933).
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                reasonedPb = request.reasonedPbFile().isPresent()</span>
+<span class="nc" id="L116">                        ? Optional.of(exportReasonedPb(request.reasonedPbFile().get()))</span>
+<span class="nc" id="L117">                        : Optional.empty();</span>
+            } finally {
+<span class="nc" id="L119">                PrimitiveData.stop();</span>
+            }
+
+<span class="nc" id="L122">            Path report = writeEffectiveViewReport(request);</span>
+
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            if (request.installDirectory().isPresent()) {</span>
+<span class="nc" id="L125">                Path install = request.installDirectory().get();</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                if (Files.exists(install)) {</span>
+<span class="nc" id="L127">                    deleteRecursively(install);</span>
+                }
+<span class="nc" id="L129">                copyRecursively(storeRoot, install);</span>
+            }
+
+<span class="nc" id="L132">            return new AssembleResult(loads, classification, Optional.of(report), reasonedPb);</span>
+<span class="nc" id="L133">        } catch (IOException e) {</span>
+<span class="nc" id="L134">            throw new UncheckedIOException(&quot;Knowledge-base assembly failed&quot;, e);</span>
+        }
+    }
+
+    /**
+     * Exports the open, classified store as a full standalone reasoned protobuf — the
+     * {@code reasoned-pb} classifier form: every entity across all time, inferred
+     * semantics included, via the same temporal-aggregator export Komet's own export
+     * controller drives (IKE-Network/ike-issues#933). All time starts at the earliest
+     * representable instant, not at the epoch: a loaded file's versions stamped before
+     * the epoch are part of the store and belong in its export
+     * (IKE-Network/ike-issues#1123).
+     *
+     * @param file the export file to write
+     * @return the written file
+     * @throws IOException if the parent directory cannot be created
+     */
+    static Path exportReasonedPb(Path file) throws IOException {
+<span class="fc" id="L152">        Path parent = file.toAbsolutePath().getParent();</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (parent != null) {</span>
+<span class="fc" id="L154">            Files.createDirectories(parent);</span>
+        }
+<span class="fc" id="L156">        new ExportEntitiesToProtobufFile(file.toFile(),</span>
+<span class="fc" id="L157">                new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE)).compute();</span>
+<span class="fc" id="L158">        return file;</span>
+    }
+
+    /**
+     * Runs the full classification sequence and returns its summary. Derived semantics
+     * (inferred axioms and inferred navigation) are written into the open store.
+     */
+    private static ClassificationSummary classify(String reasonerName) {
+<span class="nc" id="L166">        List&lt;ReasonerService&gt; found = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L167">        PluggableService.load(ReasonerService.class).forEach(found::add);</span>
+<span class="nc" id="L168">        ReasonerService reasoner = found.stream()</span>
+<span class="nc" id="L169">                .filter(candidate -&gt; candidate.getClass().getSimpleName().equals(reasonerName))</span>
+<span class="nc" id="L170">                .findFirst()</span>
+<span class="nc" id="L171">                .orElseThrow(() -&gt; new IllegalStateException(&quot;Reasoner service \&quot;&quot; + reasonerName</span>
+                        + &quot;\&quot; is not on the classpath — found &quot;
+<span class="nc" id="L173">                        + found.stream().map(candidate -&gt; candidate.getClass().getSimpleName()).toList()));</span>
+
+<span class="nc" id="L175">        long started = System.currentTimeMillis();</span>
+<span class="nc" id="L176">        TrackingCallable&lt;Void&gt; progress = new TrackingCallable&lt;&gt;() {</span>
+            @Override
+            protected Void compute() {
+<span class="nc" id="L179">                return null;</span>
+            }
+        };
+        try {
+<span class="nc" id="L183">            reasoner.init(Calculators.View.Default(),</span>
+                    TinkarTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
+                    TinkarTerm.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
+<span class="nc" id="L186">            reasoner.extractData(progress);</span>
+<span class="nc" id="L187">            reasoner.loadData(progress);</span>
+<span class="nc" id="L188">            reasoner.computeInferences(progress);</span>
+<span class="nc" id="L189">            reasoner.buildNecessaryNormalForm(progress);</span>
+<span class="nc" id="L190">            ClassifierResults results = reasoner.writeInferredResults(progress);</span>
+<span class="nc" id="L191">            return new ClassificationSummary(reasonerName,</span>
+<span class="nc" id="L192">                    results.getClassificationConceptSet().size(),</span>
+<span class="nc" id="L193">                    results.getConceptsWithInferredChanges().size(),</span>
+<span class="nc" id="L194">                    results.getConceptsWithNavigationChanges().size(),</span>
+<span class="nc" id="L195">                    System.currentTimeMillis() - started);</span>
+<span class="nc" id="L196">        } catch (Exception e) {</span>
+<span class="nc" id="L197">            throw new IllegalStateException(&quot;Classification failed in &quot; + reasonerName, e);</span>
+        }
+    }
+
+    /**
+     * Reports the view the assembly ran under — the stated dimensions plus the marker
+     * that unresolved dimensions took the engine's default view. Replaced by the fully
+     * resolved report when the resolver increment lands.
+     */
+    private static Path writeEffectiveViewReport(AssembleRequest request) throws IOException {
+<span class="nc" id="L207">        Path report = request.storeRoot().toAbsolutePath().getParent()</span>
+<span class="nc" id="L208">                .resolve(request.storeRoot().getFileName() + &quot;-effective-view.properties&quot;);</span>
+<span class="nc" id="L209">        Properties properties = request.view().toProperties(&quot;view.&quot;);</span>
+<span class="nc" id="L210">        properties.setProperty(&quot;defaults&quot;, &quot;engine default view (resolver: ike-issues#849)&quot;);</span>
+<span class="nc" id="L211">        try (var out = Files.newOutputStream(report)) {</span>
+<span class="nc" id="L212">            properties.store(out, &quot;Effective view of the knowledge-base assembly&quot;);</span>
+        }
+<span class="nc" id="L214">        return report;</span>
+    }
+
+    static void unzipInto(Path zip, Path targetRoot) throws IOException {
+<span class="nc" id="L218">        try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {</span>
+<span class="nc" id="L219">            ZipEntry entry = in.getNextEntry();</span>
+<span class="nc bnc" id="L220" title="All 2 branches missed.">            while (entry != null) {</span>
+<span class="nc" id="L221">                Path target = targetRoot.resolve(entry.getName()).normalize();</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">                if (!target.startsWith(targetRoot)) {</span>
+<span class="nc" id="L223">                    throw new IOException(&quot;Store seed entry escapes the store root: &quot; + entry.getName());</span>
+                }
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                if (entry.isDirectory()) {</span>
+<span class="nc" id="L226">                    Files.createDirectories(target);</span>
+                } else {
+<span class="nc" id="L228">                    Files.createDirectories(target.getParent());</span>
+<span class="nc" id="L229">                    Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);</span>
+                }
+<span class="nc" id="L231">                entry = in.getNextEntry();</span>
+<span class="nc" id="L232">            }</span>
+        }
+<span class="nc" id="L234">    }</span>
+
+    static void deleteRecursively(Path root) throws IOException {
+<span class="nc" id="L237">        Files.walkFileTree(root, new SimpleFileVisitor&lt;&gt;() {</span>
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+<span class="nc" id="L240">                Files.delete(file);</span>
+<span class="nc" id="L241">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+<span class="nc" id="L246">                Files.delete(dir);</span>
+<span class="nc" id="L247">                return FileVisitResult.CONTINUE;</span>
+            }
+        });
+<span class="nc" id="L250">    }</span>
+
+    private static void copyRecursively(Path source, Path target) throws IOException {
+<span class="nc" id="L253">        Files.walkFileTree(source, new SimpleFileVisitor&lt;&gt;() {</span>
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+<span class="nc" id="L256">                Files.createDirectories(target.resolve(source.relativize(dir).toString()));</span>
+<span class="nc" id="L257">                return FileVisitResult.CONTINUE;</span>
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+<span class="nc" id="L262">                Files.copy(file, target.resolve(source.relativize(file).toString()),</span>
+                        StandardCopyOption.REPLACE_EXISTING);
+<span class="nc" id="L264">                return FileVisitResult.CONTINUE;</span>
+            }
+        });
+<span class="nc" id="L267">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

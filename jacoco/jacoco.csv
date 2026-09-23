@@ -1,0 +1,10 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreExporter,62,122,6,2,13,30,5,4,1,4
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreAssembler.new SimpleFileVisitor() {...},11,0,0,0,5,0,3,0,3,0
+IKE Knowledge Provider,network.ike.knowledge.provider,StatedNavigationDeriver.Summary,10,12,4,0,1,1,3,1,1,1
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreAssembler.new TrackingCallable() {...},5,0,0,0,2,0,2,0,2,0
+IKE Knowledge Provider,network.ike.knowledge.provider,StatedNavigationDeriver.FieldOrder,11,73,3,7,2,17,3,5,0,3
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreAssembler.new SimpleFileVisitor() {...},42,0,0,0,5,0,3,0,3,0
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreAssembler,375,25,23,1,88,6,22,1,10,1
+IKE Knowledge Provider,network.ike.knowledge.provider,ChronologyStoreVerifier,272,0,20,0,65,0,16,0,6,0
+IKE Knowledge Provider,network.ike.knowledge.provider,StatedNavigationDeriver,15,522,11,39,6,105,10,26,0,11

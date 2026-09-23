@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="stylesheet" href="jacoco-resources/ike-theme.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StatedNavigationDeriver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><a href="../index.html" style="font-weight:bold;margin-right:8px">← Project Site</a> | <span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IKE Knowledge Provider</a> &gt; <a href="index.source.html" class="el_package">network.ike.knowledge.provider</a> &gt; <span class="el_source">StatedNavigationDeriver.java</span></div><h1>StatedNavigationDeriver.java</h1><pre class="source lang-java linenums">package network.ike.knowledge.provider;
+
+import dev.ikm.tinkar.common.id.IntIdSet;
+import dev.ikm.tinkar.common.id.IntIds;
+import dev.ikm.tinkar.common.id.PublicId;
+import dev.ikm.tinkar.common.service.PrimitiveData;
+import dev.ikm.tinkar.common.util.uuid.UuidT5Generator;
+import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
+import dev.ikm.tinkar.coordinate.view.ViewCoordinateRecord;
+import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculator;
+import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculatorWithCache;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.PatternEntityVersion;
+import dev.ikm.tinkar.entity.RecordListBuilder;
+import dev.ikm.tinkar.entity.SemanticEntityVersion;
+import dev.ikm.tinkar.entity.SemanticRecord;
+import dev.ikm.tinkar.entity.SemanticRecordBuilder;
+import dev.ikm.tinkar.entity.SemanticVersionRecord;
+import dev.ikm.tinkar.entity.StampEntity;
+import dev.ikm.tinkar.entity.graph.DiTreeEntity;
+import dev.ikm.tinkar.entity.graph.EntityVertex;
+import dev.ikm.tinkar.entity.transaction.Transaction;
+import dev.ikm.tinkar.terms.ConceptFacade;
+import dev.ikm.tinkar.terms.State;
+import dev.ikm.tinkar.terms.TinkarTerm;
+import org.eclipse.collections.api.factory.Lists;
+import org.eclipse.collections.api.list.ImmutableList;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
+
+import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICID_FOR_NID;
+
+/**
+ * Derives the stated navigation of every concept from its stated definition and writes
+ * it into the open store (IKE-Network/ike-issues#1123).
+ *
+ * &lt;p&gt;A stated navigation semantic records, for one concept, the concepts its stated
+ * definition names as parents and the concepts whose stated definitions name it as a
+ * parent. A knowledge file carries such semantics as they stood when the file was
+ * written; once a ledger re-declares a concept's definition, the file's navigation is
+ * stale, and nothing else rewrites it: the reasoner writes inferred navigation only.
+ * Browsers that navigate the stated view, such as Komet's login dialog, then show the
+ * old parents.
+ *
+ * &lt;p&gt;The derivation reads, under the given view, the latest stated definition of every
+ * concept and keeps those that are active. A parent is a concept named by a concept
+ * reference inside a necessary set or a sufficient set; a concept naming itself, the
+ * root's own encoding, is not its own parent. Children are the inverse. Every concept
+ * that has an active definition or is named as a parent gets its navigation written:
+ * a new version on the concept's existing stated navigation semantic when the latest
+ * fields differ, a new semantic with the single-semantic identity of the pattern when
+ * the concept has none, and nothing when the fields already agree, so a second
+ * derivation over the same store writes nothing. Written versions carry the view's
+ * derived-content stamp: the logic coordinate's classifier as author, the view's
+ * default module and path, the same identity the classifier's inferred results carry.
+ */
+public final class StatedNavigationDeriver {
+
+<span class="fc" id="L66">    private static final System.Logger LOG = System.getLogger(StatedNavigationDeriver.class.getName());</span>
+
+    /**
+     * What one derivation did.
+     *
+     * @param conceptsConsidered the concepts with an active stated definition or named as a parent
+     * @param semanticsUpdated   existing stated navigation semantics that received a new version
+     * @param semanticsCreated   stated navigation semantics minted for concepts that had none
+     */
+<span class="fc" id="L75">    public record Summary(int conceptsConsidered, int semanticsUpdated, int semanticsCreated) {</span>
+
+        /** Whether the derivation wrote anything. */
+        public boolean wroteAnything() {
+<span class="nc bnc" id="L79" title="All 4 branches missed.">            return semanticsUpdated &gt; 0 || semanticsCreated &gt; 0;</span>
+        }
+    }
+
+    private StatedNavigationDeriver() {
+    }
+
+    /**
+     * Derives and writes the stated navigation of every concept in the open store.
+     *
+     * @param view the view the stated definitions are read under and whose classifier,
+     *             default module, and default path stamp the written versions
+     * @return what the derivation did
+     */
+    public static Summary derive(ViewCoordinateRecord view) {
+<span class="fc" id="L94">        ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);</span>
+<span class="fc" id="L95">        int statedPatternNid = view.logicCoordinate().statedAxiomsPatternNid();</span>
+<span class="fc" id="L96">        int navigationPatternNid = TinkarTerm.STATED_NAVIGATION_PATTERN.nid();</span>
+
+<span class="fc" id="L98">        Map&lt;Integer, Set&lt;Integer&gt;&gt; parentsByConcept = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L99">        Map&lt;Integer, Set&lt;Integer&gt;&gt; childrenByConcept = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L100">        calculator.forEachSemanticVersionOfPattern(statedPatternNid,</span>
+                (semanticVersion, patternVersion) -&gt; {
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                    if (!semanticVersion.active()) {</span>
+<span class="nc" id="L103">                        return;</span>
+                    }
+<span class="fc" id="L105">                    int concept = semanticVersion.referencedComponentNid();</span>
+<span class="fc" id="L106">                    Set&lt;Integer&gt; parents = statedParents(concept,</span>
+<span class="fc" id="L107">                            (DiTreeEntity) semanticVersion.fieldValues().get(0));</span>
+<span class="fc" id="L108">                    parentsByConcept.computeIfAbsent(concept, key -&gt; new TreeSet&lt;&gt;()).addAll(parents);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">                    for (int parent : parents) {</span>
+<span class="fc" id="L110">                        childrenByConcept.computeIfAbsent(parent, key -&gt; new TreeSet&lt;&gt;()).add(concept);</span>
+<span class="fc" id="L111">                    }</span>
+<span class="fc" id="L112">                });</span>
+<span class="fc" id="L113">        Set&lt;Integer&gt; concepts = new TreeSet&lt;&gt;(parentsByConcept.keySet());</span>
+<span class="fc" id="L114">        concepts.addAll(childrenByConcept.keySet());</span>
+
+<span class="fc" id="L116">        Latest&lt;PatternEntityVersion&gt; navigationPattern = calculator.latest(navigationPatternNid);</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        if (navigationPattern.isAbsent()) {</span>
+<span class="nc" id="L118">            throw new IllegalStateException(&quot;The stated navigation pattern has no version under the view&quot;);</span>
+        }
+<span class="fc" id="L120">        FieldOrder order = FieldOrder.of(navigationPattern.get());</span>
+<span class="fc" id="L121">        PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);</span>
+
+<span class="fc" id="L123">        Transaction transaction = Transaction.make(&quot;Stated navigation derivation&quot;);</span>
+<span class="fc" id="L124">        StampEntity&lt;?&gt; stamp = transaction.getStamp(State.ACTIVE,</span>
+<span class="fc" id="L125">                view.logicCoordinate().classifierNid(),</span>
+<span class="fc" id="L126">                view.getDefaultModuleNid(),</span>
+<span class="fc" id="L127">                view.getDefaultPathNid());</span>
+<span class="fc" id="L128">        int updated = 0;</span>
+<span class="fc" id="L129">        int created = 0;</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        for (int concept : concepts) {</span>
+<span class="fc" id="L131">            IntIdSet children = IntIds.set.of(toArray(childrenByConcept.get(concept)));</span>
+<span class="fc" id="L132">            IntIdSet parents = IntIds.set.of(toArray(parentsByConcept.get(concept)));</span>
+<span class="fc" id="L133">            ImmutableList&lt;Object&gt; fields = order.fields(children, parents);</span>
+<span class="fc" id="L134">            List&lt;Integer&gt; existing = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L135">            PrimitiveData.get().forEachSemanticNidForComponentOfPattern(concept, navigationPatternNid,</span>
+<span class="fc" id="L136">                    existing::add);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">            if (existing.isEmpty()) {</span>
+<span class="fc" id="L138">                transaction.addComponent(mint(concept, navigationPatternId, navigationPatternNid,</span>
+<span class="fc" id="L139">                        stamp.nid(), fields));</span>
+<span class="fc" id="L140">                created++;</span>
+            } else {
+<span class="fc" id="L142">                int semanticNid = existing.getFirst();</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                if (agrees(calculator.latest(semanticNid), order, children, parents)) {</span>
+<span class="fc" id="L144">                    continue;</span>
+                }
+<span class="fc" id="L146">                SemanticRecord record = calculator.updateFields(semanticNid, fields, stamp.nid());</span>
+<span class="fc" id="L147">                transaction.addComponent(record);</span>
+<span class="fc" id="L148">                EntityService.get().putEntity(record);</span>
+<span class="fc" id="L149">                updated++;</span>
+            }
+<span class="fc" id="L151">        }</span>
+<span class="pc bpc" id="L152" title="1 of 4 branches missed.">        if (updated &gt; 0 || created &gt; 0) {</span>
+<span class="fc" id="L153">            transaction.commit();</span>
+        } else {
+<span class="fc" id="L155">            transaction.cancel();</span>
+        }
+<span class="fc" id="L157">        Summary summary = new Summary(concepts.size(), updated, created);</span>
+<span class="fc" id="L158">        LOG.log(System.Logger.Level.INFO, &quot;Stated navigation derived for {0} concepts: {1} semantics updated, {2} created&quot;,</span>
+<span class="fc" id="L159">                summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated());</span>
+<span class="fc" id="L160">        return summary;</span>
+    }
+
+    /**
+     * The parents a stated definition names: every concept reference inside a necessary
+     * set or a sufficient set, the concept itself excluded.
+     */
+    static Set&lt;Integer&gt; statedParents(int concept, DiTreeEntity definition) {
+<span class="fc" id="L168">        Set&lt;Integer&gt; parents = new TreeSet&lt;&gt;();</span>
+<span class="fc" id="L169">        EntityVertex root = definition.root();</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        for (EntityVertex set : definition.successors(root)) {</span>
+<span class="fc" id="L171">            int setMeaning = set.getMeaningNid();</span>
+<span class="pc bpc" id="L172" title="3 of 4 branches missed.">            if (setMeaning != TinkarTerm.NECESSARY_SET.nid() &amp;&amp; setMeaning != TinkarTerm.SUFFICIENT_SET.nid()) {</span>
+<span class="nc" id="L173">                continue;</span>
+            }
+<span class="fc bfc" id="L175" title="All 2 branches covered.">            for (EntityVertex connective : definition.successors(set)) {</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">                if (connective.getMeaningNid() != TinkarTerm.AND.nid()) {</span>
+<span class="nc" id="L177">                    continue;</span>
+                }
+<span class="fc bfc" id="L179" title="All 2 branches covered.">                for (EntityVertex atom : definition.successors(connective)) {</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                    if (atom.getMeaningNid() != TinkarTerm.CONCEPT_REFERENCE.nid()) {</span>
+<span class="nc" id="L181">                        continue;</span>
+                    }
+<span class="fc" id="L183">                    Object reference = atom.propertyFast(TinkarTerm.CONCEPT_REFERENCE);</span>
+<span class="pc bpc" id="L184" title="1 of 4 branches missed.">                    if (reference instanceof ConceptFacade facade &amp;&amp; facade.nid() != concept) {</span>
+<span class="fc" id="L185">                        parents.add(facade.nid());</span>
+                    }
+<span class="fc" id="L187">                }</span>
+<span class="fc" id="L188">            }</span>
+<span class="fc" id="L189">        }</span>
+<span class="fc" id="L190">        return parents;</span>
+    }
+
+    private static boolean agrees(Latest&lt;SemanticEntityVersion&gt; latest, FieldOrder order,
+                                  IntIdSet children, IntIdSet parents) {
+<span class="pc bpc" id="L195" title="2 of 4 branches missed.">        if (latest.isAbsent() || !latest.get().active()) {</span>
+<span class="nc" id="L196">            return false;</span>
+        }
+<span class="fc" id="L198">        ImmutableList&lt;Object&gt; fields = latest.get().fieldValues();</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        return sameMembers((IntIdSet) fields.get(order.childrenIndex()), children)</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">                &amp;&amp; sameMembers((IntIdSet) fields.get(order.parentsIndex()), parents);</span>
+    }
+
+    private static boolean sameMembers(IntIdSet left, IntIdSet right) {
+<span class="fc" id="L204">        Set&lt;Integer&gt; leftMembers = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        for (int nid : left.toArray()) {</span>
+<span class="fc" id="L206">            leftMembers.add(nid);</span>
+        }
+<span class="fc" id="L208">        Set&lt;Integer&gt; rightMembers = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        for (int nid : right.toArray()) {</span>
+<span class="fc" id="L210">            rightMembers.add(nid);</span>
+        }
+<span class="fc" id="L212">        return leftMembers.equals(rightMembers);</span>
+    }
+
+    private static SemanticRecord mint(int concept, PublicId patternId, int patternNid, int stampNid,
+                                       ImmutableList&lt;Object&gt; fields) {
+<span class="fc" id="L217">        UUID uuid = UuidT5Generator.singleSemanticUuid(patternId, PrimitiveData.publicId(concept));</span>
+<span class="fc" id="L218">        int semanticNid = ScopedValue.where(SCOPED_PATTERN_PUBLICID_FOR_NID, patternId)</span>
+<span class="fc" id="L219">                .call(() -&gt; PrimitiveData.nid(uuid));</span>
+<span class="fc" id="L220">        RecordListBuilder&lt;SemanticVersionRecord&gt; versions = RecordListBuilder.make();</span>
+<span class="fc" id="L221">        SemanticRecord record = SemanticRecordBuilder.builder()</span>
+<span class="fc" id="L222">                .nid(semanticNid)</span>
+<span class="fc" id="L223">                .referencedComponentNid(concept)</span>
+<span class="fc" id="L224">                .leastSignificantBits(uuid.getLeastSignificantBits())</span>
+<span class="fc" id="L225">                .mostSignificantBits(uuid.getMostSignificantBits())</span>
+<span class="fc" id="L226">                .patternNid(patternNid)</span>
+<span class="fc" id="L227">                .versions(versions)</span>
+<span class="fc" id="L228">                .build();</span>
+<span class="fc" id="L229">        versions.add(new SemanticVersionRecord(record, stampNid, fields));</span>
+<span class="fc" id="L230">        EntityService.get().putEntity(record);</span>
+<span class="fc" id="L231">        return record;</span>
+    }
+
+    private static int[] toArray(Set&lt;Integer&gt; nids) {
+<span class="fc bfc" id="L235" title="All 2 branches covered.">        if (nids == null) {</span>
+<span class="fc" id="L236">            return new int[0];</span>
+        }
+<span class="fc" id="L238">        int[] array = new int[nids.size()];</span>
+<span class="fc" id="L239">        int index = 0;</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        for (int nid : nids) {</span>
+<span class="fc" id="L241">            array[index++] = nid;</span>
+<span class="fc" id="L242">        }</span>
+<span class="fc" id="L243">        return array;</span>
+    }
+
+    /** Which field of the navigation pattern holds the children and which the parents. */
+<span class="fc" id="L247">    record FieldOrder(int childrenIndex, int parentsIndex) {</span>
+
+        /**
+         * Reads the order off the pattern's field meanings: relationship destination
+         * for children, relationship origin for parents; the pattern's own declared order
+         * of the two fields otherwise.
+         */
+        static FieldOrder of(PatternEntityVersion pattern) {
+<span class="fc" id="L255">            int fieldCount = pattern.fieldDefinitions().size();</span>
+<span class="pc bpc" id="L256" title="1 of 2 branches missed.">            if (fieldCount != 2) {</span>
+<span class="nc" id="L257">                throw new IllegalStateException(&quot;A navigation pattern carries two fields, not &quot; + fieldCount);</span>
+            }
+<span class="fc" id="L259">            int children = 0;</span>
+<span class="fc" id="L260">            int parents = 1;</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">            for (int index = 0; index &lt; fieldCount; index++) {</span>
+<span class="fc" id="L262">                int meaning = pattern.fieldDefinitions().get(index).meaningNid();</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">                if (meaning == TinkarTerm.RELATIONSHIP_DESTINATION.nid()) {</span>
+<span class="fc" id="L264">                    children = index;</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">                } else if (meaning == TinkarTerm.RELATIONSHIP_ORIGIN.nid()) {</span>
+<span class="fc" id="L266">                    parents = index;</span>
+                }
+            }
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">            if (children == parents) {</span>
+<span class="nc" id="L270">                throw new IllegalStateException(&quot;The navigation pattern's fields do not tell children from parents&quot;);</span>
+            }
+<span class="fc" id="L272">            return new FieldOrder(children, parents);</span>
+        }
+
+        ImmutableList&lt;Object&gt; fields(IntIdSet children, IntIdSet parents) {
+<span class="fc" id="L276">            Object[] values = new Object[2];</span>
+<span class="fc" id="L277">            values[childrenIndex] = children;</span>
+<span class="fc" id="L278">            values[parentsIndex] = parents;</span>
+<span class="fc" id="L279">            return Lists.immutable.of(values);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

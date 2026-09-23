@@ -1,0 +1,26 @@
+/* IKE Theme Override for Javadoc Reports                  */
+/* Overrides the Java 25 default stylesheet's :root        */
+/* custom properties to the sentry-green palette.          */
+/* Palette source: network.ike.plugin.IkePalette.          */
+
+:root {
+    --navbar-background-color: #4A7D84;
+    --navbar-text-color: #ffffff;
+
+    --subnav-background-color: #E6EBE7;
+    --subnav-link-color: #3A6065;
+    --member-heading-background-color: var(--subnav-background-color);
+
+    --selected-background-color: #FFA351;
+    --selected-text-color: #273B36;
+    --selected-link-color: #3A6065;
+
+    --table-header-color: #E6EBE7;
+    --title-color: #273B36;
+
+    --link-color: #3A6065;
+    --link-color-active: #FFA351;
+
+    --toc-highlight-color: var(--subnav-background-color);
+    --toc-hover-color: #E6EBE7;
+}

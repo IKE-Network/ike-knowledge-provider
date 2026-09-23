@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang=""><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="stylesheet" href="jacoco-resources/ike-theme.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChronologyStoreVerifier.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><a href="../index.html" style="font-weight:bold;margin-right:8px">← Project Site</a> | <span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">IKE Knowledge Provider</a> &gt; <a href="index.source.html" class="el_package">network.ike.knowledge.provider</a> &gt; <span class="el_source">ChronologyStoreVerifier.java</span></div><h1>ChronologyStoreVerifier.java</h1><pre class="source lang-java linenums">/*
+ * Copyright © 2026 IKE Network (support@ike.network)
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package network.ike.knowledge.provider;
+
+import dev.ikm.tinkar.common.service.CachingService;
+import dev.ikm.tinkar.common.service.EntityCountSummary;
+import dev.ikm.tinkar.common.service.PrimitiveData;
+import dev.ikm.tinkar.common.service.ServiceKeys;
+import dev.ikm.tinkar.common.service.ServiceProperties;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.aggregator.DefaultEntityAggregator;
+import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
+import dev.ikm.tinkar.entity.transform.EntityToTinkarSchemaTransformer;
+import network.ike.knowledge.spi.ArtifactInput;
+import network.ike.knowledge.spi.Finding;
+import network.ike.knowledge.spi.KnowledgeVerifier;
+import network.ike.knowledge.spi.VerifyReport;
+import network.ike.knowledge.spi.VerifyRequest;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * The chronology-store {@link KnowledgeVerifier}: assembles a pristine throwaway store
+ * from the declared base plus the artifact under verification and runs the requested
+ * checks against it — never against the store that produced the artifact
+ * (IKE-Network/ike-issues#852, #951).
+ *
+ * &lt;p&gt;Implemented checks:
+ * &lt;ul&gt;
+ *   &lt;li&gt;{@link VerifyRequest.Check#PRESENCE} — the artifact loads into the pristine
+ *       store with its own manifest verification and count-equality check intact: the
+ *       exact gate a consumer's import runs, moved into the build.&lt;/li&gt;
+ *   &lt;li&gt;{@link VerifyRequest.Check#FIT_REFERENCES} — every loaded entity survives the
+ *       protobuf transform, which resolves every reference it serializes: a reference
+ *       to a component with no entity and no resolvable public id is reported with the
+ *       carrying entity named.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Any other requested check fails closed with an {@link Finding.Severity#ERROR}: a
+ * check this provider cannot run must never read as a check that passed.
+ */
+public final class ChronologyStoreVerifier implements KnowledgeVerifier {
+
+    /** The cap on per-entity findings for one check, so a systemic defect reports as a
+     * bounded list plus a remainder count rather than an unbounded flood. */
+    private static final int FINDING_CAP = 50;
+
+    /** Creates the provider (ServiceLoader requirement). */
+<span class="nc" id="L66">    public ChronologyStoreVerifier() {</span>
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public VerifyReport verify(VerifyRequest request) {
+<span class="nc" id="L71">        List&lt;Finding&gt; findings = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="nc" id="L73">            Path storeRoot = Files.createTempDirectory(&quot;ike-verify&quot;);</span>
+            try {
+<span class="nc" id="L75">                CachingService.clearAll();</span>
+<span class="nc" id="L76">                ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());</span>
+<span class="nc" id="L77">                PrimitiveData.selectControllerByName(&quot;Open SpinedArrayStore&quot;);</span>
+<span class="nc" id="L78">                PrimitiveData.start();</span>
+                try {
+<span class="nc" id="L80">                    loadBase(request.baseInputs(), storeRoot);</span>
+<span class="nc" id="L81">                    boolean loaded = checkPresence(request, findings);</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">                    if (loaded &amp;&amp; request.checks().contains(VerifyRequest.Check.FIT_REFERENCES)) {</span>
+<span class="nc" id="L83">                        checkFitReferences(findings);</span>
+                    }
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                    for (VerifyRequest.Check check : request.checks()) {</span>
+<span class="nc bnc" id="L86" title="All 4 branches missed.">                        if (check != VerifyRequest.Check.PRESENCE</span>
+                                &amp;&amp; check != VerifyRequest.Check.FIT_REFERENCES) {
+<span class="nc" id="L88">                            findings.add(new Finding(Finding.Severity.ERROR, check,</span>
+<span class="nc" id="L89">                                    request.artifact().getFileName().toString(),</span>
+<span class="nc" id="L90">                                    &quot;Check not implemented by &quot; + getClass().getSimpleName()</span>
+                                            + &quot; — failing closed rather than reading as passed&quot;));
+                        }
+<span class="nc" id="L93">                    }</span>
+                } finally {
+<span class="nc" id="L95">                    PrimitiveData.stop();</span>
+                }
+            } finally {
+<span class="nc" id="L98">                ChronologyStoreAssembler.deleteRecursively(storeRoot);</span>
+            }
+<span class="nc" id="L100">        } catch (IOException e) {</span>
+<span class="nc" id="L101">            throw new UncheckedIOException(&quot;Knowledge verification failed to manage its store&quot;, e);</span>
+<span class="nc" id="L102">        }</span>
+<span class="nc" id="L103">        return new VerifyReport(findings);</span>
+    }
+
+    /**
+     * Loads the declared base into the pristine store, in order: an optional store
+     * seed first, then entity loads inside the bulk-load bracket.
+     *
+     * @param baseInputs the base inputs, in load order
+     * @param storeRoot  the pristine store root
+     * @throws IOException if a store seed cannot be unzipped
+     */
+    private static void loadBase(List&lt;ArtifactInput&gt; baseInputs, Path storeRoot) throws IOException {
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (baseInputs.isEmpty()) {</span>
+<span class="nc" id="L116">            return;</span>
+        }
+<span class="nc" id="L118">        int firstLoad = 0;</span>
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if (baseInputs.getFirst().role() == ArtifactInput.Role.STORE_SEED) {</span>
+<span class="nc" id="L120">            ChronologyStoreAssembler.unzipInto(baseInputs.getFirst().path(), storeRoot);</span>
+<span class="nc" id="L121">            firstLoad = 1;</span>
+        }
+<span class="nc" id="L123">        EntityService.get().beginLoadPhase();</span>
+        try {
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            for (int i = firstLoad; i &lt; baseInputs.size(); i++) {</span>
+<span class="nc" id="L126">                new LoadEntitiesFromProtobufFile(baseInputs.get(i).path().toFile()).compute();</span>
+            }
+        } finally {
+<span class="nc" id="L129">            EntityService.get().endLoadPhase();</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * Loads the artifact under verification with the loader's own manifest and
+     * count-equality gates intact.
+     *
+     * @param request  the verification request
+     * @param findings the findings to append to
+     * @return whether the artifact loaded, so dependent checks know to run
+     */
+    private static boolean checkPresence(VerifyRequest request, List&lt;Finding&gt; findings) {
+<span class="nc" id="L142">        String artifactName = request.artifact().getFileName().toString();</span>
+<span class="nc" id="L143">        EntityService.get().beginLoadPhase();</span>
+        try {
+<span class="nc" id="L145">            EntityCountSummary loaded =</span>
+<span class="nc" id="L146">                    new LoadEntitiesFromProtobufFile(request.artifact().toFile()).compute();</span>
+<span class="nc" id="L147">            findings.add(new Finding(Finding.Severity.INFO, VerifyRequest.Check.PRESENCE,</span>
+                    artifactName,
+<span class="nc" id="L149">                    &quot;Loaded &quot; + loaded.getTotalCount() + &quot; entities (&quot;</span>
+<span class="nc" id="L150">                            + loaded.conceptCount() + &quot; concepts, &quot; + loaded.semanticCount()</span>
+<span class="nc" id="L151">                            + &quot; semantics, &quot; + loaded.patternCount() + &quot; patterns, &quot;</span>
+<span class="nc" id="L152">                            + loaded.stampCount() + &quot; stamps); manifest counts exact&quot;));</span>
+<span class="nc" id="L153">            return true;</span>
+<span class="nc" id="L154">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L155">            findings.add(new Finding(Finding.Severity.ERROR, VerifyRequest.Check.PRESENCE,</span>
+                    artifactName, &quot;Artifact failed to load into a pristine store: &quot; + e));
+<span class="nc" id="L157">            return false;</span>
+        } finally {
+<span class="nc" id="L159">            EntityService.get().endLoadPhase();</span>
+        }
+    }
+
+    /**
+     * Sweeps every entity in the assembled store through the protobuf transform — the
+     * serialization that resolves every reference — reporting each entity whose
+     * references do not fit, capped with a remainder count.
+     *
+     * @param findings the findings to append to
+     */
+    private static void checkFitReferences(List&lt;Finding&gt; findings) {
+<span class="nc" id="L171">        EntityToTinkarSchemaTransformer transformer = EntityToTinkarSchemaTransformer.getInstance();</span>
+<span class="nc" id="L172">        List&lt;Finding&gt; failures = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L173">        long[] overflow = {0};</span>
+<span class="nc" id="L174">        new DefaultEntityAggregator().aggregateEntities(entity -&gt; {</span>
+            try {
+<span class="nc" id="L176">                transformer.transform(entity);</span>
+<span class="nc" id="L177">            } catch (RuntimeException e) {</span>
+<span class="nc bnc" id="L178" title="All 2 branches missed.">                if (failures.size() &lt; FINDING_CAP) {</span>
+<span class="nc" id="L179">                    failures.add(new Finding(Finding.Severity.ERROR,</span>
+                            VerifyRequest.Check.FIT_REFERENCES,
+<span class="nc" id="L181">                            entity.getClass().getSimpleName() + &quot; &quot; + entity.publicId(),</span>
+                            &quot;Reference does not resolve within the artifact plus declared base: &quot; + e));
+                } else {
+<span class="nc" id="L184">                    overflow[0]++;</span>
+                }
+<span class="nc" id="L186">            }</span>
+<span class="nc" id="L187">        });</span>
+<span class="nc" id="L188">        findings.addAll(failures);</span>
+<span class="nc bnc" id="L189" title="All 2 branches missed.">        if (overflow[0] &gt; 0) {</span>
+<span class="nc" id="L190">            findings.add(new Finding(Finding.Severity.ERROR, VerifyRequest.Check.FIT_REFERENCES,</span>
+                    &quot;(aggregate)&quot;, overflow[0] + &quot; further entities with unresolvable references&quot;
+                    + &quot; beyond the first &quot; + FINDING_CAP));
+        }
+<span class="nc" id="L194">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

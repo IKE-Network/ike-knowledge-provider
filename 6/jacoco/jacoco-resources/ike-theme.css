@@ -1,0 +1,165 @@
+/* IKE Theme Override for JaCoCo Reports                   */
+/* Palette source: network.ike.plugin.IkePalette           */
+/* (must match ike-base-parent's site.css sentry-green).   */
+
+body, td {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: #273B36;
+    margin: 0;
+    padding: 0;
+    background: #fafafa;
+}
+
+body {
+    padding: 20px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: 600;
+    color: #273B36;
+    margin: 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #4A7D84;
+}
+
+a {
+    color: #3A6065;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #273B36;
+    text-decoration: underline;
+}
+
+/* Breadcrumb bar */
+.breadcrumb {
+    background: #273B36;
+    color: #fff;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.breadcrumb a {
+    color: #B7E4D2;
+}
+
+.breadcrumb a:hover {
+    color: #fff;
+}
+
+.breadcrumb .info {
+    float: right;
+}
+
+.breadcrumb .info a {
+    color: #adb5bd;
+    margin-left: 12px;
+}
+
+.breadcrumb .info a:hover {
+    color: #fff;
+}
+
+/* Coverage table */
+table.coverage {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+table.coverage thead {
+    background: #4A7D84;
+    color: #fff;
+}
+
+table.coverage thead td {
+    padding: 8px 14px 8px 8px;
+    border-bottom: 2px solid #273B36;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+table.coverage thead td.bar {
+    border-left: 1px solid #6E9499;
+}
+
+table.coverage thead td.ctr1,
+table.coverage thead td.ctr2 {
+    border-left: 1px solid #6E9499;
+}
+
+table.coverage tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+table.coverage tbody tr:hover {
+    background: #E6EBE7 !important;
+}
+
+table.coverage tbody td.bar {
+    border-left: 1px solid #f0f0f0;
+}
+
+table.coverage tbody td.ctr1,
+table.coverage tbody td.ctr2 {
+    border-left: 1px solid #f0f0f0;
+    padding-right: 14px;
+}
+
+table.coverage tfoot td {
+    padding: 8px;
+    font-weight: 600;
+    background: #f8f9fa;
+    border-top: 2px solid #dee2e6;
+}
+
+table.coverage tfoot td.bar {
+    border-left: 1px solid #e9ecef;
+}
+
+table.coverage tfoot td.ctr1,
+table.coverage tfoot td.ctr2 {
+    border-left: 1px solid #e9ecef;
+    padding-right: 14px;
+}
+
+/* Source code view */
+pre.source {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fff;
+    font-family: "SF Mono", "Fira Code", "Fira Mono",
+                 "Roboto Mono", monospace;
+    font-size: 13px;
+}
+
+pre.source li {
+    border-left: 1px solid #dee2e6;
+    padding-left: 4px;
+}
+
+/* Footer */
+.footer {
+    margin-top: 24px;
+    border-top: 1px solid #dee2e6;
+    padding-top: 8px;
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.footer a {
+    color: #6c757d;
+}
