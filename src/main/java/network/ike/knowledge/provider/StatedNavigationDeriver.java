@@ -27,6 +27,7 @@ import org.eclipse.collections.api.factory.Lists;
 import org.eclipse.collections.api.list.ImmutableList;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -60,6 +61,14 @@ import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICI
  * derivation over the same store writes nothing. Written versions carry the view's
  * derived-content stamp: the logic coordinate's classifier as author, the view's
  * default module and path, the same identity the classifier's inferred results carry.
+ *
+ * <p>A concept whose definition is retired, or that has none, is neither defined nor
+ * named as a parent: its former parents' children lists drop it, but its own
+ * navigation semantic would keep parents that list it nowhere. The derivation therefore
+ * also empties the stated navigation of every such concept, and
+ * {@link #emptyNavigationOfUndefined(ViewCoordinateRecord, int)} does the same for the
+ * inferred pattern once the reasoner has run, since the reasoner writes only the
+ * concepts it classified (IKE-Network/ike-issues#1131).
  */
 public final class StatedNavigationDeriver {
 
@@ -71,12 +80,15 @@ public final class StatedNavigationDeriver {
      * @param conceptsConsidered the concepts with an active stated definition or named as a parent
      * @param semanticsUpdated   existing stated navigation semantics that received a new version
      * @param semanticsCreated   stated navigation semantics minted for concepts that had none
+     * @param semanticsEmptied   stated navigation semantics of concepts with no active definition
+     *                           that received an empty version
      */
-    public record Summary(int conceptsConsidered, int semanticsUpdated, int semanticsCreated) {
+    public record Summary(int conceptsConsidered, int semanticsUpdated, int semanticsCreated,
+                          int semanticsEmptied) {
 
         /** Whether the derivation wrote anything. */
         public boolean wroteAnything() {
-            return semanticsUpdated > 0 || semanticsCreated > 0;
+            return semanticsUpdated > 0 || semanticsCreated > 0 || semanticsEmptied > 0;
         }
     }
 
@@ -84,7 +96,9 @@ public final class StatedNavigationDeriver {
     }
 
     /**
-     * Derives and writes the stated navigation of every concept in the open store.
+     * Derives and writes the stated navigation of every concept in the open store, and
+     * empties the stated navigation of every concept that has no active definition and
+     * is not named as a parent by one.
      *
      * @param view the view the stated definitions are read under and whose classifier,
      *             default module, and default path stamp the written versions
@@ -92,44 +106,18 @@ public final class StatedNavigationDeriver {
      */
     public static Summary derive(ViewCoordinateRecord view) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
-        int statedPatternNid = view.logicCoordinate().statedAxiomsPatternNid();
         int navigationPatternNid = TinkarTerm.STATED_NAVIGATION_PATTERN.nid();
-
-        Map<Integer, Set<Integer>> parentsByConcept = new HashMap<>();
-        Map<Integer, Set<Integer>> childrenByConcept = new HashMap<>();
-        calculator.forEachSemanticVersionOfPattern(statedPatternNid,
-                (semanticVersion, patternVersion) -> {
-                    if (!semanticVersion.active()) {
-                        return;
-                    }
-                    int concept = semanticVersion.referencedComponentNid();
-                    Set<Integer> parents = statedParents(concept,
-                            (DiTreeEntity) semanticVersion.fieldValues().get(0));
-                    parentsByConcept.computeIfAbsent(concept, key -> new TreeSet<>()).addAll(parents);
-                    for (int parent : parents) {
-                        childrenByConcept.computeIfAbsent(parent, key -> new TreeSet<>()).add(concept);
-                    }
-                });
-        Set<Integer> concepts = new TreeSet<>(parentsByConcept.keySet());
-        concepts.addAll(childrenByConcept.keySet());
-
-        Latest<PatternEntityVersion> navigationPattern = calculator.latest(navigationPatternNid);
-        if (navigationPattern.isAbsent()) {
-            throw new IllegalStateException("The stated navigation pattern has no version under the view");
-        }
-        FieldOrder order = FieldOrder.of(navigationPattern.get());
+        Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
+        FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
 
         Transaction transaction = Transaction.make("Stated navigation derivation");
-        StampEntity<?> stamp = transaction.getStamp(State.ACTIVE,
-                view.logicCoordinate().classifierNid(),
-                view.getDefaultModuleNid(),
-                view.getDefaultPathNid());
+        StampEntity<?> stamp = derivedContentStamp(transaction, view);
         int updated = 0;
         int created = 0;
-        for (int concept : concepts) {
-            IntIdSet children = IntIds.set.of(toArray(childrenByConcept.get(concept)));
-            IntIdSet parents = IntIds.set.of(toArray(parentsByConcept.get(concept)));
+        for (int concept : definitions.concepts()) {
+            IntIdSet children = definitions.children(concept);
+            IntIdSet parents = definitions.parents(concept);
             ImmutableList<Object> fields = order.fields(children, parents);
             List<Integer> existing = new ArrayList<>();
             PrimitiveData.get().forEachSemanticNidForComponentOfPattern(concept, navigationPatternNid,
@@ -149,15 +137,49 @@ public final class StatedNavigationDeriver {
                 updated++;
             }
         }
-        if (updated > 0 || created > 0) {
+        int emptied = emptyUndefined(calculator, definitions, navigationPatternNid, order, stamp, transaction);
+        if (updated > 0 || created > 0 || emptied > 0) {
             transaction.commit();
         } else {
             transaction.cancel();
         }
-        Summary summary = new Summary(concepts.size(), updated, created);
-        LOG.log(System.Logger.Level.INFO, "Stated navigation derived for {0} concepts: {1} semantics updated, {2} created",
-                summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated());
+        Summary summary = new Summary(definitions.concepts().size(), updated, created, emptied);
+        LOG.log(System.Logger.Level.INFO, "Stated navigation derived for {0} concepts: {1} semantics updated,"
+                        + " {2} created, {3} emptied for concepts without an active definition",
+                summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated(),
+                summary.semanticsEmptied());
         return summary;
+    }
+
+    /**
+     * Empties, under the given navigation pattern, the navigation of every concept that
+     * has no active stated definition and is not named as a parent by one
+     * (IKE-Network/ike-issues#1131): each such navigation semantic whose latest version
+     * still names children or parents receives a version with both empty. Run over the
+     * inferred navigation pattern after classification, because the reasoner writes only
+     * the concepts it classified and a retired concept keeps the inferred parents it had.
+     *
+     * @param view                 the view the stated definitions are read under and whose
+     *                             classifier, default module, and default path stamp the
+     *                             written versions
+     * @param navigationPatternNid the navigation pattern to sweep
+     * @return the number of navigation semantics that received an empty version
+     */
+    public static int emptyNavigationOfUndefined(ViewCoordinateRecord view, int navigationPatternNid) {
+        ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
+        Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
+        FieldOrder order = fieldOrder(calculator, navigationPatternNid);
+        Transaction transaction = Transaction.make("Navigation of undefined concepts emptied");
+        StampEntity<?> stamp = derivedContentStamp(transaction, view);
+        int emptied = emptyUndefined(calculator, definitions, navigationPatternNid, order, stamp, transaction);
+        if (emptied > 0) {
+            transaction.commit();
+        } else {
+            transaction.cancel();
+        }
+        LOG.log(System.Logger.Level.INFO, "{0}: navigation emptied for {1} concepts without an active definition",
+                PrimitiveData.text(navigationPatternNid), emptied);
+        return emptied;
     }
 
     /**
@@ -190,6 +212,52 @@ public final class StatedNavigationDeriver {
         return parents;
     }
 
+    /**
+     * Writes an empty version onto every navigation semantic of the pattern whose concept
+     * is neither defined nor named as a parent and whose latest version still names
+     * children or parents.
+     */
+    private static int emptyUndefined(ViewCalculator calculator, Definitions definitions, int navigationPatternNid,
+                                      FieldOrder order, StampEntity<?> stamp, Transaction transaction) {
+        List<Integer> undefined = new ArrayList<>();
+        calculator.forEachSemanticVersionOfPattern(navigationPatternNid,
+                (semanticVersion, patternVersion) -> {
+                    if (!semanticVersion.active()
+                            || definitions.concepts().contains(semanticVersion.referencedComponentNid())) {
+                        return;
+                    }
+                    ImmutableList<Object> fields = semanticVersion.fieldValues();
+                    if (((IntIdSet) fields.get(order.childrenIndex())).isEmpty()
+                            && ((IntIdSet) fields.get(order.parentsIndex())).isEmpty()) {
+                        return;
+                    }
+                    undefined.add(semanticVersion.nid());
+                });
+        ImmutableList<Object> empty = order.fields(IntIds.set.empty(), IntIds.set.empty());
+        for (int semanticNid : undefined) {
+            SemanticRecord record = calculator.updateFields(semanticNid, empty, stamp.nid());
+            transaction.addComponent(record);
+            EntityService.get().putEntity(record);
+        }
+        return undefined.size();
+    }
+
+    private static StampEntity<?> derivedContentStamp(Transaction transaction, ViewCoordinateRecord view) {
+        return transaction.getStamp(State.ACTIVE,
+                view.logicCoordinate().classifierNid(),
+                view.getDefaultModuleNid(),
+                view.getDefaultPathNid());
+    }
+
+    private static FieldOrder fieldOrder(ViewCalculator calculator, int navigationPatternNid) {
+        Latest<PatternEntityVersion> navigationPattern = calculator.latest(navigationPatternNid);
+        if (navigationPattern.isAbsent()) {
+            throw new IllegalStateException("The navigation pattern " + navigationPatternNid
+                    + " has no version under the view");
+        }
+        return FieldOrder.of(navigationPattern.get());
+    }
+
     private static boolean agrees(Latest<SemanticEntityVersion> latest, FieldOrder order,
                                   IntIdSet children, IntIdSet parents) {
         if (latest.isAbsent() || !latest.get().active()) {
@@ -212,8 +280,19 @@ public final class StatedNavigationDeriver {
         return leftMembers.equals(rightMembers);
     }
 
-    private static SemanticRecord mint(int concept, PublicId patternId, int patternNid, int stampNid,
-                                       ImmutableList<Object> fields) {
+    /**
+     * Mints a navigation semantic for a concept under the pattern's single-semantic
+     * identity, with one version at the given stamp, and puts it in the store.
+     *
+     * @param concept    the concept the semantic navigates
+     * @param patternId  the navigation pattern's identity
+     * @param patternNid the navigation pattern
+     * @param stampNid   the stamp of the one version
+     * @param fields     the version's fields, in the pattern's field order
+     * @return the record put in the store
+     */
+    static SemanticRecord mint(int concept, PublicId patternId, int patternNid, int stampNid,
+                               ImmutableList<Object> fields) {
         UUID uuid = UuidT5Generator.singleSemanticUuid(patternId, PrimitiveData.publicId(concept));
         int semanticNid = ScopedValue.where(SCOPED_PATTERN_PUBLICID_FOR_NID, patternId)
                 .call(() -> PrimitiveData.nid(uuid));
@@ -241,6 +320,49 @@ public final class StatedNavigationDeriver {
             array[index++] = nid;
         }
         return array;
+    }
+
+    /**
+     * The stated definitions under a view: the concepts that have an active definition
+     * or are named as a parent by one, with the parents each names and the children
+     * that name it.
+     *
+     * @param concepts         every defined or named concept, in nid order
+     * @param parentsByConcept the parents each defined concept names
+     * @param childrenByConcept the concepts whose definitions name each parent
+     */
+    record Definitions(Set<Integer> concepts, Map<Integer, Set<Integer>> parentsByConcept,
+                       Map<Integer, Set<Integer>> childrenByConcept) {
+
+        /** Reads the active stated definitions of the pattern under the calculator's view. */
+        static Definitions read(ViewCalculator calculator, int statedPatternNid) {
+            Map<Integer, Set<Integer>> parentsByConcept = new HashMap<>();
+            Map<Integer, Set<Integer>> childrenByConcept = new HashMap<>();
+            calculator.forEachSemanticVersionOfPattern(statedPatternNid,
+                    (semanticVersion, patternVersion) -> {
+                        if (!semanticVersion.active()) {
+                            return;
+                        }
+                        int concept = semanticVersion.referencedComponentNid();
+                        Set<Integer> parents = statedParents(concept,
+                                (DiTreeEntity) semanticVersion.fieldValues().get(0));
+                        parentsByConcept.computeIfAbsent(concept, key -> new TreeSet<>()).addAll(parents);
+                        for (int parent : parents) {
+                            childrenByConcept.computeIfAbsent(parent, key -> new TreeSet<>()).add(concept);
+                        }
+                    });
+            Set<Integer> concepts = new TreeSet<>(parentsByConcept.keySet());
+            concepts.addAll(childrenByConcept.keySet());
+            return new Definitions(Collections.unmodifiableSet(concepts), parentsByConcept, childrenByConcept);
+        }
+
+        IntIdSet parents(int concept) {
+            return IntIds.set.of(toArray(parentsByConcept.get(concept)));
+        }
+
+        IntIdSet children(int concept) {
+            return IntIds.set.of(toArray(childrenByConcept.get(concept)));
+        }
     }
 
     /** Which field of the navigation pattern holds the children and which the parents. */

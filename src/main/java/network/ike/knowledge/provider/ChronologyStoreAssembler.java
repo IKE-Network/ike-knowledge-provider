@@ -45,7 +45,9 @@ import java.util.zip.ZipInputStream;
  * inside the bulk-load bracket, the stated navigation derived from the loaded stated
  * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
  * whose inferred axiom and navigation semantics make the assembled KB navigable the
- * moment a browser opens it. Assembling under a data-source directory (the install
+ * moment a browser opens it, followed by the emptying of the inferred navigation of
+ * every concept whose definition is retired, which the reasoner leaves as it was
+ * (IKE-Network/ike-issues#1131). Assembling under a data-source directory (the install
  * directory) makes the result directly selectable.
  *
  * <p>The view specification's resolution into coordinate records is the resolver
@@ -108,6 +110,13 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 classification = request.classify()
                         ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER)))
                         : Optional.empty();
+                if (classification.isPresent()) {
+                    // The reasoner writes the concepts it classified; a concept whose
+                    // definition is retired keeps the inferred parents it had
+                    // (IKE-Network/ike-issues#1131).
+                    StatedNavigationDeriver.emptyNavigationOfUndefined(Coordinates.View.DefaultView(),
+                            TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid());
+                }
 
                 // The reasoned-pb export must see the classified store while it is
                 // still open: full standalone export, inferred semantics included
