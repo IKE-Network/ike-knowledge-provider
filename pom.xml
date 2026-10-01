@@ -81,7 +81,7 @@
              this provider's navigation sweep (#1131) together, and the starter set rides
              both until the next train. A release pins the released engine it rides, as
              release 6 rode 1.127.6 (IKE-Network/ike-issues#1123). -->
-        <chronology-store.version>1.127.7-SNAPSHOT</chronology-store.version>
+        <chronology-store.version>1.127.7-64bit-SNAPSHOT</chronology-store.version>
         <!-- ike-knowledge-spi 239 ships the #951 verification contract this
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
