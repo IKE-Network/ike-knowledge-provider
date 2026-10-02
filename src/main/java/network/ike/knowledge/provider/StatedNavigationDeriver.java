@@ -3,6 +3,7 @@ package network.ike.knowledge.provider;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.IntIds;
 import dev.ikm.tinkar.common.id.PublicId;
+import dev.ikm.tinkar.common.service.DiagnosticText;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.common.util.uuid.UuidT5Generator;
 import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
@@ -252,7 +253,7 @@ public final class StatedNavigationDeriver {
     private static FieldOrder fieldOrder(ViewCalculator calculator, int navigationPatternNid) {
         Latest<PatternEntityVersion> navigationPattern = calculator.latest(navigationPatternNid);
         if (navigationPattern.isAbsent()) {
-            throw new IllegalStateException("The navigation pattern " + navigationPatternNid
+            throw new IllegalStateException("The navigation pattern " + DiagnosticText.component(navigationPatternNid)
                     + " has no version under the view");
         }
         return FieldOrder.of(navigationPattern.get());
