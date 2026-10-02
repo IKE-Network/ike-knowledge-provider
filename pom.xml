@@ -90,6 +90,10 @@
              fidelity gate replays against. -->
         <tinkar-starter-data.version>20251009</tinkar-starter-data.version>
         <java.version>27</java.version>
+        <!-- Lucene 10.5.1 turns its Vector API code on only up to Java 26 and warns on 27.
+             The property raises that limit; the full suite passes with it. Drop it when
+             a Lucene release supports Java 27. -->
+        <argLine>--add-modules jdk.incubator.vector -Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=27</argLine>
     </properties>
 
     <dependencies>
