@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICID_FOR_NID;
 
@@ -73,7 +75,7 @@ import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICI
  */
 public final class StatedNavigationDeriver {
 
-    private static final System.Logger LOG = System.getLogger(StatedNavigationDeriver.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(StatedNavigationDeriver.class);
 
     /**
      * What one derivation did.
@@ -145,8 +147,8 @@ public final class StatedNavigationDeriver {
             transaction.cancel();
         }
         Summary summary = new Summary(definitions.concepts().size(), updated, created, emptied);
-        LOG.log(System.Logger.Level.INFO, "Stated navigation derived for {0} concepts: {1} semantics updated,"
-                        + " {2} created, {3} emptied for concepts without an active definition",
+        LOG.info("Stated navigation derived for {} concepts: {} semantics updated,"
+                        + " {} created, {} emptied for concepts without an active definition",
                 summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated(),
                 summary.semanticsEmptied());
         return summary;
@@ -178,7 +180,7 @@ public final class StatedNavigationDeriver {
         } else {
             transaction.cancel();
         }
-        LOG.log(System.Logger.Level.INFO, "{0}: navigation emptied for {1} concepts without an active definition",
+        LOG.info("{}: navigation emptied for {} concepts without an active definition",
                 PrimitiveData.text(navigationPatternNid), emptied);
         return emptied;
     }

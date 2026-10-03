@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This provider runs inside the knowledge-pipeline seam, which has no logging
+     configuration of its own, so the provider carries one: warnings and errors only, so that
+     the seam's build output stays readable (IKE-Network/ike-issues#951). It is the one jar in
+     the working set that ships a logging configuration, for that reason. -->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{ABSOLUTE} [%-6p] %40.40c - %m%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="warn">
+            <AppenderRef ref="console"/>
+        </Root>
+    </Loggers>
+</Configuration>
