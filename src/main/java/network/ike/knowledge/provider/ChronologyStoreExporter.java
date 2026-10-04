@@ -71,9 +71,11 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
                 KnowledgeSet knowledgeSet = selectSource(request.sourceClass()).compose();
                 knowledgeSet.write();
 
+                // From the beginning of time: a stamp the set declares before inception, such as
+                // the non-existent stamp, is part of the set and must reach its export.
                 EntityCountSummary summary = new ExportEntitiesToProtobufFile(
                         request.outputFile().toFile(),
-                        new TemporalEntityAggregator(0L, Long.MAX_VALUE)).compute();
+                        new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE)).compute();
 
                 Optional<Path> konceptsYml = request.konceptsYmlFile();
                 if (konceptsYml.isPresent()) {
