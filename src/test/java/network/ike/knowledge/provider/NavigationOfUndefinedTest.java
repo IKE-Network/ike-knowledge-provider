@@ -9,8 +9,8 @@ import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
 import dev.ikm.tinkar.coordinate.view.ViewCoordinateRecord;
 import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculator;
 import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculatorWithCache;
-import dev.ikm.tinkar.entity.EntityHandle;
 import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.SemanticRecord;
 import dev.ikm.tinkar.entity.StampEntity;
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -167,10 +166,10 @@ class NavigationOfUndefinedTest {
 
     private static Set<Integer> field(int conceptNid, int patternNid, int index) {
         ViewCalculator view = ViewCalculatorWithCache.getCalculator(VIEW);
-        List<Integer> semantics = navigationSemantics(conceptNid, patternNid);
+        List<SemanticEntity<SemanticEntityVersion>> semantics = navigationSemantics(conceptNid, patternNid);
         assertEquals(1, semantics.size(), "one navigation semantic for "
                 + view.getFullyQualifiedNameTextOrNid(conceptNid) + " under " + PrimitiveData.text(patternNid));
-        Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst());
+        Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst().nid());
         assertTrue(latest.isPresent(), "a latest navigation version");
         Set<Integer> members = new HashSet<>();
         for (int nid : ((IntIdSet) latest.get().fieldValues().get(index)).toArray()) {
@@ -181,15 +180,13 @@ class NavigationOfUndefinedTest {
 
     private static int navigationVersions(int conceptNid, int patternNid) {
         int count = 0;
-        for (int semanticNid : navigationSemantics(conceptNid, patternNid)) {
-            count += EntityHandle.get(semanticNid).expectSemantic().versions().size();
+        for (SemanticEntity<SemanticEntityVersion> semantic : navigationSemantics(conceptNid, patternNid)) {
+            count += semantic.versions().size();
         }
         return count;
     }
 
-    private static List<Integer> navigationSemantics(int conceptNid, int patternNid) {
-        List<Integer> semantics = new ArrayList<>();
-        PrimitiveData.get().forEachSemanticNidForComponentOfPattern(conceptNid, patternNid, semantics::add);
-        return semantics;
+    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(int conceptNid, int patternNid) {
+        return EntityService.get().semanticsForComponentOfPattern(conceptNid, patternNid).toList();
     }
 }

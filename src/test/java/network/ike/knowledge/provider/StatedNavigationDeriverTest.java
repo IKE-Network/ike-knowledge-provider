@@ -8,7 +8,8 @@ import dev.ikm.tinkar.coordinate.Coordinates;
 import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
 import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculator;
 import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculatorWithCache;
-import dev.ikm.tinkar.entity.EntityHandle;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.builder.ActiveStamp;
 import dev.ikm.tinkar.entity.builder.KnowledgeSet;
@@ -21,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -145,10 +145,10 @@ class StatedNavigationDeriverTest {
 
     private static Set<Integer> field(int conceptNid, int index) {
         ViewCalculator view = ViewCalculatorWithCache.getCalculator(Coordinates.View.DefaultView());
-        List<Integer> semantics = navigationSemantics(conceptNid);
+        List<SemanticEntity<SemanticEntityVersion>> semantics = navigationSemantics(conceptNid);
         assertEquals(1, semantics.size(), "one stated navigation semantic for "
                 + view.getFullyQualifiedNameTextOrNid(conceptNid));
-        Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst());
+        Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst().nid());
         assertTrue(latest.isPresent(), "a latest navigation version");
         Set<Integer> members = new HashSet<>();
         for (int nid : ((IntIdSet) latest.get().fieldValues().get(index)).toArray()) {
@@ -159,16 +159,14 @@ class StatedNavigationDeriverTest {
 
     private static int navigationVersions(int conceptNid) {
         int count = 0;
-        for (int semanticNid : navigationSemantics(conceptNid)) {
-            count += EntityHandle.get(semanticNid).expectSemantic().versions().size();
+        for (SemanticEntity<SemanticEntityVersion> semantic : navigationSemantics(conceptNid)) {
+            count += semantic.versions().size();
         }
         return count;
     }
 
-    private static List<Integer> navigationSemantics(int conceptNid) {
-        List<Integer> semantics = new ArrayList<>();
-        PrimitiveData.get().forEachSemanticNidForComponentOfPattern(conceptNid,
-                TinkarTerm.STATED_NAVIGATION_PATTERN.nid(), semantics::add);
-        return semantics;
+    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(int conceptNid) {
+        return EntityService.get().semanticsForComponentOfPattern(conceptNid,
+                TinkarTerm.STATED_NAVIGATION_PATTERN.nid()).toList();
     }
 }

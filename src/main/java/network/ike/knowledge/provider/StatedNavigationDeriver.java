@@ -13,6 +13,7 @@ import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculatorWithCache;
 import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.PatternEntityVersion;
 import dev.ikm.tinkar.entity.RecordListBuilder;
+import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.SemanticRecord;
 import dev.ikm.tinkar.entity.SemanticRecordBuilder;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -122,15 +124,14 @@ public final class StatedNavigationDeriver {
             IntIdSet children = definitions.children(concept);
             IntIdSet parents = definitions.parents(concept);
             ImmutableList<Object> fields = order.fields(children, parents);
-            List<Integer> existing = new ArrayList<>();
-            PrimitiveData.get().forEachSemanticNidForComponentOfPattern(concept, navigationPatternNid,
-                    existing::add);
+            Optional<SemanticEntity<SemanticEntityVersion>> existing = EntityService.get()
+                    .semanticsForComponentOfPattern(concept, navigationPatternNid).findFirst();
             if (existing.isEmpty()) {
                 transaction.addComponent(mint(concept, navigationPatternId, navigationPatternNid,
                         stamp.nid(), fields));
                 created++;
             } else {
-                int semanticNid = existing.getFirst();
+                int semanticNid = existing.get().nid();
                 if (agrees(calculator.latest(semanticNid), order, children, parents)) {
                     continue;
                 }

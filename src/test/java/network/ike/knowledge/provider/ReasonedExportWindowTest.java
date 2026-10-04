@@ -3,7 +3,8 @@ package network.ike.knowledge.provider;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.coordinate.Coordinates;
-import dev.ikm.tinkar.entity.EntityHandle;
+import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.terms.TinkarTerm;
@@ -58,16 +59,20 @@ class ReasonedExportWindowTest {
 
     private static int semanticsInStore() {
         int[] count = new int[1];
-        PrimitiveData.get().forEachSemanticNid(nid -> count[0]++);
+        EntityService.get().forEachEntity(entity -> {
+            if (entity instanceof SemanticEntity<?>) {
+                count[0]++;
+            }
+        });
         return count[0];
     }
 
     private static int preEpochOnlyStatedNavigationSemantics() {
         int[] count = new int[1];
-        PrimitiveData.get().forEachSemanticNidOfPattern(TinkarTerm.STATED_NAVIGATION_PATTERN.nid(), nid -> {
+        EntityService.get().forEachSemanticOfPattern(TinkarTerm.STATED_NAVIGATION_PATTERN.nid(), semantic -> {
             boolean sinceEpoch = false;
-            for (Object version : EntityHandle.get(nid).expectSemantic().versions()) {
-                if (((SemanticEntityVersion) version).stamp().time() >= 0) {
+            for (SemanticEntityVersion version : semantic.versions()) {
+                if (version.stamp().time() >= 0) {
                     sinceEpoch = true;
                 }
             }
