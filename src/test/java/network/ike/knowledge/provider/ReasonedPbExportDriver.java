@@ -11,7 +11,7 @@ import dev.ikm.tinkar.coordinate.Calculators;
 import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
 import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
-import dev.ikm.tinkar.entity.EntityService;
+import dev.ikm.tinkar.entity.EntityHandle;
 import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.terms.EntityFacade;
@@ -143,7 +143,7 @@ final class ReasonedPbExportDriver {
             new LoadEntitiesFromProtobufFile(changesetZip).compute();
             List<String> reports = new ArrayList<>();
             PrimitiveData.get().forEachSemanticNid(semanticNid -> {
-                if (EntityService.get().getEntityFast(semanticNid) instanceof SemanticEntity<?> sem) {
+                if (EntityHandle.get(semanticNid).orNull() instanceof SemanticEntity<?> sem) {
                     reportIfAbsent(sem, "referencedComponent", sem.referencedComponentNid(), reports);
                     reportIfAbsent(sem, "pattern", sem.patternNid(), reports);
                     for (SemanticEntityVersion version : sem.versions()) {
@@ -165,7 +165,7 @@ final class ReasonedPbExportDriver {
     }
 
     private static void reportIfAbsent(SemanticEntity<?> sem, String label, int refNid, List<String> reports) {
-        if (EntityService.get().getEntityFast(refNid) != null) {
+        if (EntityHandle.get(refNid).isPresent()) {
             return;
         }
         reports.add("DANGLING " + label + " -> absent component publicId=" + safePid(refNid)
