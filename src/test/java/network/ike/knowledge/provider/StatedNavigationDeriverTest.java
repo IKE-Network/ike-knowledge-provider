@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.PublicIds;
 import dev.ikm.tinkar.common.service.CachingService;
@@ -59,8 +60,8 @@ class StatedNavigationDeriverTest {
         new LoadEntitiesFromProtobufFile(
                 Path.of("target", "data", "tinkar-starter-data-unreasoned-pb.zip").toFile()).compute();
 
-        ActiveStamp stamp = Stamp.active(AUTHORING_TIME, TinkarTerm.USER,
-                TinkarTerm.SOLOR_OVERLAY_MODULE, TinkarTerm.DEVELOPMENT_PATH);
+        ActiveStamp stamp = Stamp.active(AUTHORING_TIME, KernelTerm.USER,
+                KernelTerm.SOLOR_OVERLAY_MODULE, KernelTerm.DEVELOPMENT_PATH);
         ledger = KnowledgeSet.of("0a5c7d0e-3b7a-5e8f-9c1d-2f4e6a8b0c1d");
         ledger.concept("Alpha (Test)").at(stamp)
                 .synonym("Alpha")
@@ -101,7 +102,7 @@ class StatedNavigationDeriverTest {
     void reparentedConceptMoves() {
         int reparented = PrimitiveData.nid(REPARENTED);
         assertEquals(Set.of(TinkarTerm.MODEL_CONCEPT.nid()), parents(reparented), "the new parent");
-        assertFalse(children(TinkarTerm.USER.nid()).contains(reparented),
+        assertFalse(children(KernelTerm.USER.nid()).contains(reparented),
                 "Author no longer lists it, so a login dialog reading stated navigation no longer offers it");
         assertTrue(children(TinkarTerm.MODEL_CONCEPT.nid()).contains(reparented), "Model concept lists it");
     }
@@ -112,27 +113,27 @@ class StatedNavigationDeriverTest {
         assertEquals(1, untouchedVersionsBefore, "KOMET user's stated navigation came with the base file");
         assertEquals(untouchedVersionsBefore, navigationVersions(PrimitiveData.nid(UNTOUCHED)),
                 "KOMET user's stated navigation gained no version");
-        assertEquals(Set.of(TinkarTerm.USER.nid()), parents(PrimitiveData.nid(UNTOUCHED)), "and still names Author");
+        assertEquals(Set.of(KernelTerm.USER.nid()), parents(PrimitiveData.nid(UNTOUCHED)), "and still names Author");
     }
 
     @Test
     @DisplayName("A second derivation over the same store writes nothing")
     void secondDerivationWritesNothing() {
         int alphaVersions = navigationVersions(ledger.conceptRef("Alpha (Test)").nid());
-        int userVersions = navigationVersions(TinkarTerm.USER.nid());
+        int userVersions = navigationVersions(KernelTerm.USER.nid());
         StatedNavigationDeriver.Summary second = StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
         assertEquals(0, second.semanticsUpdated(), "nothing to update");
         assertEquals(0, second.semanticsCreated(), "nothing to create");
         assertEquals(first.conceptsConsidered(), second.conceptsConsidered(), "the same concepts considered");
         assertEquals(alphaVersions, navigationVersions(ledger.conceptRef("Alpha (Test)").nid()));
-        assertEquals(userVersions, navigationVersions(TinkarTerm.USER.nid()));
+        assertEquals(userVersions, navigationVersions(KernelTerm.USER.nid()));
     }
 
     @Test
     @DisplayName("The root's self-reference is not a parent")
     void rootNamesNoParent() {
-        assertEquals(Set.of(), parents(TinkarTerm.ROOT_VERTEX.nid()), "the root has no parents");
-        assertFalse(children(TinkarTerm.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
+        assertEquals(Set.of(), parents(KernelTerm.ROOT_VERTEX.nid()), "the root has no parents");
+        assertFalse(children(KernelTerm.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
     }
 
     private static Set<Integer> parents(int conceptNid) {
@@ -167,6 +168,6 @@ class StatedNavigationDeriverTest {
 
     private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(int conceptNid) {
         return EntityService.get().semanticsForComponentOfPattern(conceptNid,
-                TinkarTerm.STATED_NAVIGATION_PATTERN.nid()).toList();
+                KernelTerm.STATED_NAVIGATION_PATTERN.nid()).toList();
     }
 }

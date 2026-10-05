@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.entity.builder.ActiveStamp;
 import dev.ikm.tinkar.entity.builder.KnowledgeSet;
 import dev.ikm.tinkar.entity.builder.KnowledgeSetSource;
@@ -24,7 +25,7 @@ public final class ExampleLedgerSource implements KnowledgeSetSource {
     @Override
     public KnowledgeSet compose() {
         ActiveStamp inception = Stamp.active("2026-07-11T00:00:00Z",
-                TinkarTerm.USER, TinkarTerm.DEVELOPMENT_MODULE, TinkarTerm.DEVELOPMENT_PATH);
+                KernelTerm.USER, TinkarTerm.DEVELOPMENT_MODULE, KernelTerm.DEVELOPMENT_PATH);
 
         EXAMPLE_SET.concept("Example root (Example)").at(inception)
                 .synonym("Example root")

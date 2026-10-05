@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.coordinate.Coordinates;
@@ -7,7 +8,6 @@ import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
-import dev.ikm.tinkar.terms.TinkarTerm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -69,7 +69,7 @@ class ReasonedExportWindowTest {
 
     private static int preEpochOnlyStatedNavigationSemantics() {
         int[] count = new int[1];
-        EntityService.get().forEachSemanticOfPattern(TinkarTerm.STATED_NAVIGATION_PATTERN.nid(), semantic -> {
+        EntityService.get().forEachSemanticOfPattern(KernelTerm.STATED_NAVIGATION_PATTERN.nid(), semantic -> {
             boolean sinceEpoch = false;
             for (SemanticEntityVersion version : semantic.versions()) {
                 if (version.stamp().time() >= 0) {

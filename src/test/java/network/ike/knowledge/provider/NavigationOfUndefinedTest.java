@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.IntIds;
 import dev.ikm.tinkar.common.service.CachingService;
@@ -17,7 +18,6 @@ import dev.ikm.tinkar.entity.StampEntity;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.entity.transaction.Transaction;
 import dev.ikm.tinkar.terms.State;
-import dev.ikm.tinkar.terms.TinkarTerm;
 import org.eclipse.collections.api.factory.Lists;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -66,25 +66,25 @@ class NavigationOfUndefinedTest {
         VIEW = Coordinates.View.DefaultView();
 
         int retired = PrimitiveData.nid(RETIRED);
-        statedParentsBefore = parents(retired, TinkarTerm.STATED_NAVIGATION_PATTERN.nid());
+        statedParentsBefore = parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid());
         retireDefinition(PrimitiveData.nid(RETIRED_AXIOMS));
         first = StatedNavigationDeriver.derive(VIEW);
 
         // The inferred navigation a reasoned file, or an earlier classification, leaves
         // behind for the concept: the reasoner will not touch it, having nothing to
         // classify.
-        int inferredPattern = TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid();
+        int inferredPattern = KernelTerm.INFERRED_NAVIGATION_PATTERN.nid();
         assertEquals(0, navigationSemantics(retired, inferredPattern).size(),
                 "the unreasoned base carries no inferred navigation for the concept");
         Transaction transaction = Transaction.make("Stale inferred navigation");
-        StampEntity<?> stamp = transaction.getStamp(State.ACTIVE, TinkarTerm.USER.nid(),
-                TinkarTerm.SOLOR_OVERLAY_MODULE.nid(), TinkarTerm.DEVELOPMENT_PATH.nid());
+        StampEntity<?> stamp = transaction.getStamp(State.ACTIVE, KernelTerm.USER.nid(),
+                KernelTerm.SOLOR_OVERLAY_MODULE.nid(), KernelTerm.DEVELOPMENT_PATH.nid());
         SemanticRecord stale = StatedNavigationDeriver.mint(retired, PrimitiveData.publicId(inferredPattern),
                 inferredPattern, stamp.nid(),
-                Lists.immutable.of(IntIds.set.empty(), IntIds.set.of(TinkarTerm.USER.nid())));
+                Lists.immutable.of(IntIds.set.empty(), IntIds.set.of(KernelTerm.USER.nid())));
         transaction.addComponent(stale);
         transaction.commit();
-        assertEquals(Set.of(TinkarTerm.USER.nid()), parents(retired, inferredPattern), "stale parents in place");
+        assertEquals(Set.of(KernelTerm.USER.nid()), parents(retired, inferredPattern), "stale parents in place");
 
         inferredEmptied = StatedNavigationDeriver.emptyNavigationOfUndefined(VIEW, inferredPattern);
     }
@@ -98,9 +98,9 @@ class NavigationOfUndefinedTest {
     @DisplayName("A retired definition empties the concept's stated navigation")
     void retiredDefinitionEmptiesStatedNavigation() {
         int retired = PrimitiveData.nid(RETIRED);
-        assertEquals(Set.of(TinkarTerm.USER.nid()), statedParentsBefore, "the base filed it under Author");
-        assertEquals(Set.of(), parents(retired, TinkarTerm.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
-        assertEquals(Set.of(), children(retired, TinkarTerm.STATED_NAVIGATION_PATTERN.nid()), "no children");
+        assertEquals(Set.of(KernelTerm.USER.nid()), statedParentsBefore, "the base filed it under Author");
+        assertEquals(Set.of(), parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
+        assertEquals(Set.of(), children(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no children");
         assertTrue(first.semanticsEmptied() >= 1, "the derivation reports the emptied semantic");
         assertTrue(first.wroteAnything());
     }
@@ -108,7 +108,7 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("The former parent no longer lists the concept")
     void formerParentDropsIt() {
-        assertFalse(children(TinkarTerm.USER.nid(), TinkarTerm.STATED_NAVIGATION_PATTERN.nid())
+        assertFalse(children(KernelTerm.USER.nid(), KernelTerm.STATED_NAVIGATION_PATTERN.nid())
                 .contains(PrimitiveData.nid(RETIRED)), "Author's children drop it");
     }
 
@@ -117,16 +117,16 @@ class NavigationOfUndefinedTest {
     void inferredNavigationEmptiedAfterClassification() {
         assertEquals(1, inferredEmptied, "one stale inferred navigation semantic emptied");
         int retired = PrimitiveData.nid(RETIRED);
-        assertEquals(Set.of(), parents(retired, TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid()));
-        assertEquals(Set.of(), children(retired, TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid()));
+        assertEquals(Set.of(), parents(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
+        assertEquals(Set.of(), children(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
     }
 
     @Test
     @DisplayName("A concept that keeps its definition is untouched")
     void definedConceptUntouched() {
         int kept = PrimitiveData.nid(KEPT);
-        assertEquals(Set.of(TinkarTerm.USER.nid()), parents(kept, TinkarTerm.STATED_NAVIGATION_PATTERN.nid()));
-        assertEquals(1, navigationVersions(kept, TinkarTerm.STATED_NAVIGATION_PATTERN.nid()),
+        assertEquals(Set.of(KernelTerm.USER.nid()), parents(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()));
+        assertEquals(1, navigationVersions(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()),
                 "the base's one version");
     }
 
@@ -134,7 +134,7 @@ class NavigationOfUndefinedTest {
     @DisplayName("A second sweep and a second derivation write nothing")
     void secondSweepWritesNothing() {
         assertEquals(0, StatedNavigationDeriver.emptyNavigationOfUndefined(VIEW,
-                TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid()), "nothing left to empty");
+                KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()), "nothing left to empty");
         StatedNavigationDeriver.Summary second = StatedNavigationDeriver.derive(VIEW);
         assertEquals(0, second.semanticsEmptied(), "nothing left to empty in the stated pattern");
         assertEquals(0, second.semanticsUpdated());
@@ -148,8 +148,8 @@ class NavigationOfUndefinedTest {
         Latest<SemanticEntityVersion> latest = view.latest(axiomsNid);
         assertTrue(latest.isPresent() && latest.get().active(), "an active definition to retire");
         Transaction transaction = Transaction.make("Retire a base definition");
-        StampEntity<?> stamp = transaction.getStamp(State.INACTIVE, TinkarTerm.USER.nid(),
-                TinkarTerm.SOLOR_OVERLAY_MODULE.nid(), TinkarTerm.DEVELOPMENT_PATH.nid());
+        StampEntity<?> stamp = transaction.getStamp(State.INACTIVE, KernelTerm.USER.nid(),
+                KernelTerm.SOLOR_OVERLAY_MODULE.nid(), KernelTerm.DEVELOPMENT_PATH.nid());
         SemanticRecord record = view.updateFields(axiomsNid, latest.get().fieldValues(), stamp.nid());
         transaction.addComponent(record);
         EntityService.get().putEntity(record);
