@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PluggableService;
@@ -15,7 +16,6 @@ import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.reasoner.service.ClassifierResults;
 import dev.ikm.tinkar.reasoner.service.ReasonerService;
-import dev.ikm.tinkar.terms.TinkarTerm;
 import network.ike.knowledge.spi.ArtifactInput;
 import network.ike.knowledge.spi.AssembleRequest;
 import network.ike.knowledge.spi.AssembleResult;
@@ -115,7 +115,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     // definition is retired keeps the inferred parents it had
                     // (IKE-Network/ike-issues#1131).
                     StatedNavigationDeriver.emptyNavigationOfUndefined(Coordinates.View.DefaultView(),
-                            TinkarTerm.INFERRED_NAVIGATION_PATTERN.nid());
+                            KernelTerm.INFERRED_NAVIGATION_PATTERN.nid());
                 }
 
                 // The reasoned-pb export must see the classified store while it is
@@ -190,8 +190,8 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         };
         try {
             reasoner.init(Calculators.View.Default(),
-                    TinkarTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
-                    TinkarTerm.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
+                    KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
+                    KernelTerm.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
             reasoner.extractData(progress);
             reasoner.loadData(progress);
             reasoner.computeInferences(progress);

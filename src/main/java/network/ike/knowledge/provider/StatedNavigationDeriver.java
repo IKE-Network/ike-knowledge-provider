@@ -1,5 +1,6 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.IntIds;
 import dev.ikm.tinkar.common.id.PublicId;
@@ -24,7 +25,6 @@ import dev.ikm.tinkar.entity.graph.EntityVertex;
 import dev.ikm.tinkar.entity.transaction.Transaction;
 import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.terms.State;
-import dev.ikm.tinkar.terms.TinkarTerm;
 import org.eclipse.collections.api.factory.Lists;
 import org.eclipse.collections.api.list.ImmutableList;
 
@@ -111,7 +111,7 @@ public final class StatedNavigationDeriver {
      */
     public static Summary derive(ViewCoordinateRecord view) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
-        int navigationPatternNid = TinkarTerm.STATED_NAVIGATION_PATTERN.nid();
+        int navigationPatternNid = KernelTerm.STATED_NAVIGATION_PATTERN.nid();
         Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
@@ -195,18 +195,18 @@ public final class StatedNavigationDeriver {
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
             int setMeaning = set.getMeaningNid();
-            if (setMeaning != TinkarTerm.NECESSARY_SET.nid() && setMeaning != TinkarTerm.SUFFICIENT_SET.nid()) {
+            if (setMeaning != KernelTerm.NECESSARY_SET.nid() && setMeaning != KernelTerm.SUFFICIENT_SET.nid()) {
                 continue;
             }
             for (EntityVertex connective : definition.successors(set)) {
-                if (connective.getMeaningNid() != TinkarTerm.AND.nid()) {
+                if (connective.getMeaningNid() != KernelTerm.AND.nid()) {
                     continue;
                 }
                 for (EntityVertex atom : definition.successors(connective)) {
-                    if (atom.getMeaningNid() != TinkarTerm.CONCEPT_REFERENCE.nid()) {
+                    if (atom.getMeaningNid() != KernelTerm.CONCEPT_REFERENCE.nid()) {
                         continue;
                     }
-                    Object reference = atom.propertyFast(TinkarTerm.CONCEPT_REFERENCE);
+                    Object reference = atom.propertyFast(KernelTerm.CONCEPT_REFERENCE);
                     if (reference instanceof ConceptFacade facade && facade.nid() != concept) {
                         parents.add(facade.nid());
                     }
@@ -386,9 +386,9 @@ public final class StatedNavigationDeriver {
             int parents = 1;
             for (int index = 0; index < fieldCount; index++) {
                 int meaning = pattern.fieldDefinitions().get(index).meaningNid();
-                if (meaning == TinkarTerm.RELATIONSHIP_DESTINATION.nid()) {
+                if (meaning == KernelTerm.RELATIONSHIP_DESTINATION.nid()) {
                     children = index;
-                } else if (meaning == TinkarTerm.RELATIONSHIP_ORIGIN.nid()) {
+                } else if (meaning == KernelTerm.RELATIONSHIP_ORIGIN.nid()) {
                     parents = index;
                 }
             }
