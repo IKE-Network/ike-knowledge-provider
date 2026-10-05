@@ -1,5 +1,7 @@
 package network.ike.knowledge.provider;
 
+import network.ike.foundation.ike.bindings.IkeTerms;
+import dev.ikm.tinkar.terms.EntityProxy;
 import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.IntIds;
@@ -28,7 +30,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,12 +43,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class NavigationOfUndefinedTest {
 
-    /** The base concept whose definition the test retires: Order for axiom attachments, a child of Author. */
-    private static final UUID RETIRED = UUID.fromString("abcb0946-20e1-5483-8469-3e8fa0ce20c4");
-    /** Its stated axiom semantic in the base. */
-    private static final UUID RETIRED_AXIOMS = UUID.fromString("8dbb8e28-d4c1-5d7f-a003-d99a395d29ed");
+    /** The base concept whose definition the test retires: Gretel, a child of Author. */
+    private static final EntityProxy.Concept RETIRED = IkeTerms.GRETEL;
     /** A base concept that keeps its definition, another child of Author: KOMET user. */
-    private static final UUID KEPT = UUID.fromString("61c1a544-2acf-58cd-8cc0-9ac581d4227e");
+    private static final EntityProxy.Concept KEPT = KernelTerm.KOMET_USER;
 
     /** The default view, resolved once the store is open: its coordinates carry nids. */
     private static ViewCoordinateRecord VIEW;
@@ -62,12 +61,16 @@ class NavigationOfUndefinedTest {
         PrimitiveData.selectControllerByName("Load Ephemeral Store");
         PrimitiveData.start();
         new LoadEntitiesFromProtobufFile(
-                Path.of("target", "data", "tinkar-starter-data-unreasoned-pb.zip").toFile()).compute();
+                Path.of("target", "data", "ike-starter-set-unreasoned-pb.zip").toFile()).compute();
         VIEW = Coordinates.View.DefaultView();
 
-        int retired = PrimitiveData.nid(RETIRED);
+        // The unreasoned IKE starter set carries no navigation: a first derivation gives
+        // the base its own, as an import would before anything is retired.
+        StatedNavigationDeriver.derive(VIEW);
+        int retired = RETIRED.nid();
         statedParentsBefore = parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid());
-        retireDefinition(PrimitiveData.nid(RETIRED_AXIOMS));
+        retireDefinition(EntityService.get().semanticsForComponentOfPattern(retired,
+                KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().nid());
         first = StatedNavigationDeriver.derive(VIEW);
 
         // The inferred navigation a reasoned file, or an earlier classification, leaves
@@ -97,8 +100,8 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("A retired definition empties the concept's stated navigation")
     void retiredDefinitionEmptiesStatedNavigation() {
-        int retired = PrimitiveData.nid(RETIRED);
-        assertEquals(Set.of(KernelTerm.USER.nid()), statedParentsBefore, "the base filed it under Author");
+        int retired = RETIRED.nid();
+        assertEquals(Set.of(KernelTerm.USER.nid()), statedParentsBefore, "the base's derivation filed it under Author");
         assertEquals(Set.of(), parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
         assertEquals(Set.of(), children(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no children");
         assertTrue(first.semanticsEmptied() >= 1, "the derivation reports the emptied semantic");
@@ -109,14 +112,14 @@ class NavigationOfUndefinedTest {
     @DisplayName("The former parent no longer lists the concept")
     void formerParentDropsIt() {
         assertFalse(children(KernelTerm.USER.nid(), KernelTerm.STATED_NAVIGATION_PATTERN.nid())
-                .contains(PrimitiveData.nid(RETIRED)), "Author's children drop it");
+                .contains(RETIRED.nid()), "Author's children drop it");
     }
 
     @Test
     @DisplayName("The sweep after classification empties the concept's inferred navigation")
     void inferredNavigationEmptiedAfterClassification() {
         assertEquals(1, inferredEmptied, "one stale inferred navigation semantic emptied");
-        int retired = PrimitiveData.nid(RETIRED);
+        int retired = RETIRED.nid();
         assertEquals(Set.of(), parents(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
         assertEquals(Set.of(), children(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
     }
@@ -124,10 +127,10 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("A concept that keeps its definition is untouched")
     void definedConceptUntouched() {
-        int kept = PrimitiveData.nid(KEPT);
+        int kept = KEPT.nid();
         assertEquals(Set.of(KernelTerm.USER.nid()), parents(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()));
         assertEquals(1, navigationVersions(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()),
-                "the base's one version");
+                "the one version the base's derivation wrote");
     }
 
     @Test

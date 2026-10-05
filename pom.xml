@@ -86,9 +86,10 @@
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
         <!-- The base knowledge file the stated-navigation tests derive over
-             (IKE-Network/ike-issues#1123): the same artifact the starter set's
-             fidelity gate replays against. -->
-        <tinkar-starter-data.version>20251009</tinkar-starter-data.version>
+             (IKE-Network/ike-issues#1123): the unreasoned IKE starter set, from
+             starter-data-ws, which is built with this provider, so a fresh machine builds
+             this repository without tests, then starter-data-ws, then tests it. -->
+        <ike-starter-set.version>1-64bit-SNAPSHOT</ike-starter-set.version>
         <java.version>27</java.version>
         <!-- Lucene 10.5.1 turns its Vector API code on only up to Java 26 and warns on 27.
              The property raises that limit; the full suite passes with it. Drop it when
@@ -194,6 +195,20 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- The IKE starter set's bindings (IkeTerms) for the components the tests name beyond the kernel. -->
+
+        <dependency>
+
+            <groupId>network.ike.foundation</groupId>
+
+            <artifactId>ike-bindings</artifactId>
+
+            <version>${ike-starter-set.version}</version>
+
+            <scope>test</scope>
+
+        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -231,14 +246,14 @@
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
-                                    <groupId>dev.ikm.data.tinkar</groupId>
-                                    <artifactId>tinkar-starter-data</artifactId>
-                                    <version>${tinkar-starter-data.version}</version>
+                                    <groupId>network.ike.foundation</groupId>
+                                    <artifactId>ike-starter-set</artifactId>
+                                    <version>${ike-starter-set.version}</version>
                                     <classifier>unreasoned-pb</classifier>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/data</outputDirectory>
-                                    <destFileName>tinkar-starter-data-unreasoned-pb.zip</destFileName>
+                                    <destFileName>ike-starter-set-unreasoned-pb.zip</destFileName>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>

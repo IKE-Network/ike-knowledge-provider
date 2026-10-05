@@ -1,11 +1,11 @@
 package network.ike.knowledge.provider;
 
+import network.ike.foundation.ike.bindings.IkeTerms;
 import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.entity.builder.ActiveStamp;
 import dev.ikm.tinkar.entity.builder.KnowledgeSet;
 import dev.ikm.tinkar.entity.builder.KnowledgeSetSource;
 import dev.ikm.tinkar.entity.builder.Stamp;
-import dev.ikm.tinkar.terms.TinkarTerm;
 
 /**
  * A real, minimal ledger source for the provider's end-to-end tests (the house rule:
@@ -25,19 +25,19 @@ public final class ExampleLedgerSource implements KnowledgeSetSource {
     @Override
     public KnowledgeSet compose() {
         ActiveStamp inception = Stamp.active("2026-07-11T00:00:00Z",
-                KernelTerm.USER, TinkarTerm.DEVELOPMENT_MODULE, KernelTerm.DEVELOPMENT_PATH);
+                KernelTerm.USER, IkeTerms.DEVELOPMENT_MODULE, KernelTerm.DEVELOPMENT_PATH);
 
         EXAMPLE_SET.concept("Example root (Example)").at(inception)
                 .synonym("Example root")
                 .definition("Root concept of the provider's end-to-end test set.")
-                .isA(TinkarTerm.MODEL_CONCEPT);
+                .isA(IkeTerms.MODEL_CONCEPT);
 
         EXAMPLE_SET.concept("Example child (Example)").at(inception)
                 .synonym("Example child")
                 .isA(EXAMPLE_SET.conceptRef("Example root (Example)"));
 
         EXAMPLE_SET.pattern("Example membership pattern (Example)").at(inception)
-                .meaning(TinkarTerm.MODEL_CONCEPT).purpose(TinkarTerm.MEMBERSHIP_SEMANTIC)
+                .meaning(IkeTerms.MODEL_CONCEPT).purpose(IkeTerms.MEMBERSHIP_SEMANTIC)
                 .synonym("Example membership");
 
         return EXAMPLE_SET;
