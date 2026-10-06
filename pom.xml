@@ -208,6 +208,15 @@
 
             <scope>test</scope>
 
+            <!-- ike-bindings depends back on this module; without the exclusion an installed
+                 copy of this module's own jar joins its test path beside target/classes. -->
+            <exclusions>
+                <exclusion>
+                    <groupId>network.ike.knowledge</groupId>
+                    <artifactId>ike-knowledge-provider</artifactId>
+                </exclusion>
+            </exclusions>
+
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
