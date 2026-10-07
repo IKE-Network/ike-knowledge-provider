@@ -1,8 +1,10 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.terms.KernelTerm;
 import dev.ikm.tinkar.common.id.IntIdSet;
 import dev.ikm.tinkar.common.id.IntIds;
 import dev.ikm.tinkar.common.id.PublicId;
+import dev.ikm.tinkar.common.service.DiagnosticText;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.common.util.uuid.UuidT5Generator;
 import dev.ikm.tinkar.coordinate.stamp.calculator.Latest;
@@ -12,6 +14,7 @@ import dev.ikm.tinkar.coordinate.view.calculator.ViewCalculatorWithCache;
 import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.PatternEntityVersion;
 import dev.ikm.tinkar.entity.RecordListBuilder;
+import dev.ikm.tinkar.entity.SemanticEntity;
 import dev.ikm.tinkar.entity.SemanticEntityVersion;
 import dev.ikm.tinkar.entity.SemanticRecord;
 import dev.ikm.tinkar.entity.SemanticRecordBuilder;
@@ -22,7 +25,6 @@ import dev.ikm.tinkar.entity.graph.EntityVertex;
 import dev.ikm.tinkar.entity.transaction.Transaction;
 import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.terms.State;
-import dev.ikm.tinkar.terms.TinkarTerm;
 import org.eclipse.collections.api.factory.Lists;
 import org.eclipse.collections.api.list.ImmutableList;
 
@@ -32,9 +34,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICID_FOR_NID;
 
@@ -72,7 +77,7 @@ import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICI
  */
 public final class StatedNavigationDeriver {
 
-    private static final System.Logger LOG = System.getLogger(StatedNavigationDeriver.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(StatedNavigationDeriver.class);
 
     /**
      * What one derivation did.
@@ -106,7 +111,7 @@ public final class StatedNavigationDeriver {
      */
     public static Summary derive(ViewCoordinateRecord view) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
-        int navigationPatternNid = TinkarTerm.STATED_NAVIGATION_PATTERN.nid();
+        int navigationPatternNid = KernelTerm.STATED_NAVIGATION_PATTERN.nid();
         Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
@@ -119,15 +124,14 @@ public final class StatedNavigationDeriver {
             IntIdSet children = definitions.children(concept);
             IntIdSet parents = definitions.parents(concept);
             ImmutableList<Object> fields = order.fields(children, parents);
-            List<Integer> existing = new ArrayList<>();
-            PrimitiveData.get().forEachSemanticNidForComponentOfPattern(concept, navigationPatternNid,
-                    existing::add);
+            Optional<SemanticEntity<SemanticEntityVersion>> existing = EntityService.get()
+                    .semanticsForComponentOfPattern(concept, navigationPatternNid).findFirst();
             if (existing.isEmpty()) {
                 transaction.addComponent(mint(concept, navigationPatternId, navigationPatternNid,
                         stamp.nid(), fields));
                 created++;
             } else {
-                int semanticNid = existing.getFirst();
+                int semanticNid = existing.get().nid();
                 if (agrees(calculator.latest(semanticNid), order, children, parents)) {
                     continue;
                 }
@@ -144,8 +148,8 @@ public final class StatedNavigationDeriver {
             transaction.cancel();
         }
         Summary summary = new Summary(definitions.concepts().size(), updated, created, emptied);
-        LOG.log(System.Logger.Level.INFO, "Stated navigation derived for {0} concepts: {1} semantics updated,"
-                        + " {2} created, {3} emptied for concepts without an active definition",
+        LOG.info("Stated navigation derived for {} concepts: {} semantics updated,"
+                        + " {} created, {} emptied for concepts without an active definition",
                 summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated(),
                 summary.semanticsEmptied());
         return summary;
@@ -177,7 +181,7 @@ public final class StatedNavigationDeriver {
         } else {
             transaction.cancel();
         }
-        LOG.log(System.Logger.Level.INFO, "{0}: navigation emptied for {1} concepts without an active definition",
+        LOG.info("{}: navigation emptied for {} concepts without an active definition",
                 PrimitiveData.text(navigationPatternNid), emptied);
         return emptied;
     }
@@ -191,18 +195,18 @@ public final class StatedNavigationDeriver {
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
             int setMeaning = set.getMeaningNid();
-            if (setMeaning != TinkarTerm.NECESSARY_SET.nid() && setMeaning != TinkarTerm.SUFFICIENT_SET.nid()) {
+            if (setMeaning != KernelTerm.NECESSARY_SET.nid() && setMeaning != KernelTerm.SUFFICIENT_SET.nid()) {
                 continue;
             }
             for (EntityVertex connective : definition.successors(set)) {
-                if (connective.getMeaningNid() != TinkarTerm.AND.nid()) {
+                if (connective.getMeaningNid() != KernelTerm.AND.nid()) {
                     continue;
                 }
                 for (EntityVertex atom : definition.successors(connective)) {
-                    if (atom.getMeaningNid() != TinkarTerm.CONCEPT_REFERENCE.nid()) {
+                    if (atom.getMeaningNid() != KernelTerm.CONCEPT_REFERENCE.nid()) {
                         continue;
                     }
-                    Object reference = atom.propertyFast(TinkarTerm.CONCEPT_REFERENCE);
+                    Object reference = atom.propertyFast(KernelTerm.CONCEPT_REFERENCE);
                     if (reference instanceof ConceptFacade facade && facade.nid() != concept) {
                         parents.add(facade.nid());
                     }
@@ -252,7 +256,7 @@ public final class StatedNavigationDeriver {
     private static FieldOrder fieldOrder(ViewCalculator calculator, int navigationPatternNid) {
         Latest<PatternEntityVersion> navigationPattern = calculator.latest(navigationPatternNid);
         if (navigationPattern.isAbsent()) {
-            throw new IllegalStateException("The navigation pattern " + navigationPatternNid
+            throw new IllegalStateException("The navigation pattern " + DiagnosticText.component(navigationPatternNid)
                     + " has no version under the view");
         }
         return FieldOrder.of(navigationPattern.get());
@@ -382,9 +386,9 @@ public final class StatedNavigationDeriver {
             int parents = 1;
             for (int index = 0; index < fieldCount; index++) {
                 int meaning = pattern.fieldDefinitions().get(index).meaningNid();
-                if (meaning == TinkarTerm.RELATIONSHIP_DESTINATION.nid()) {
+                if (meaning == KernelTerm.RELATIONSHIP_DESTINATION.nid()) {
                     children = index;
-                } else if (meaning == TinkarTerm.RELATIONSHIP_ORIGIN.nid()) {
+                } else if (meaning == KernelTerm.RELATIONSHIP_ORIGIN.nid()) {
                     parents = index;
                 }
             }

@@ -22,7 +22,7 @@
     <parent>
         <groupId>network.ike.platform</groupId>
         <artifactId>ike-parent</artifactId>
-        <version>191</version>
+        <version>196</version>
         <relativePath/>
     </parent>
 
@@ -86,10 +86,21 @@
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
         <!-- The base knowledge file the stated-navigation tests derive over
-             (IKE-Network/ike-issues#1123): the same artifact the starter set's
-             fidelity gate replays against. -->
-        <tinkar-starter-data.version>20251009</tinkar-starter-data.version>
+             (IKE-Network/ike-issues#1123): the unreasoned IKE starter set, from
+             starter-data-ws, which is built with this provider, so a fresh machine builds
+             this repository without tests, then starter-data-ws, then tests it. -->
+        <ike-starter-set.version>1-SNAPSHOT</ike-starter-set.version>
         <java.version>27</java.version>
+        <!-- Lucene 10.5.1 turns its Vector API code on only up to Java 26 and warns on 27.
+             The property raises that limit; the full suite passes with it. Drop it when
+             a Lucene release supports Java 27. -->
+        <argLine>--sun-misc-unsafe-memory-access=allow -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager --add-modules jdk.incubator.vector -Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=27</argLine>
+        <!-- The nid build check (tinkar-core nid-check, IKE-Network/ike-issues#1244): how it
+             reports (error, or warning for a census), which classes may narrow a nid, and
+             javac's cap on warnings, raised for a census. -->
+        <nid-check.report>error</nid-check.report>
+        <nid-check.allow></nid-check.allow>
+        <javac.maxwarns>100</javac.maxwarns>
     </properties>
 
     <dependencies>
@@ -104,10 +115,19 @@
              classpath, and without a binding tinkar's WARN/ERROR lines (orphan and
              dangling-reference accounting) die in the SLF4J NOP logger instead of
              reaching the [seam] build output (IKE-Network/ike-issues#951).
-             simplelogger.properties pins the level to warn. -->
+             log4j2.xml in this jar pins the level to warn. -->
         <dependency>
             <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j2-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
             <scope>runtime</scope>
         </dependency>
 
@@ -181,10 +201,45 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- The IKE starter set's bindings (IkeTerms) for the components the tests name beyond the kernel. -->
+
+        <dependency>
+
+            <groupId>network.ike.foundation</groupId>
+
+            <artifactId>ike-bindings</artifactId>
+
+            <version>${ike-starter-set.version}</version>
+
+            <scope>test</scope>
+
+            <!-- ike-bindings depends back on this module; without the exclusion an installed
+                 copy of this module's own jar joins its test path beside target/classes. -->
+            <exclusions>
+                <exclusion>
+                    <groupId>network.ike.knowledge</groupId>
+                    <artifactId>ike-knowledge-provider</artifactId>
+                </exclusion>
+            </exclusions>
+
+        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>3.27.3</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- The shared test logging configuration (log4j2-test.xml); a library ships none of its own. -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>test-logging</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-jul</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -206,14 +261,14 @@
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
-                                    <groupId>dev.ikm.data.tinkar</groupId>
-                                    <artifactId>tinkar-starter-data</artifactId>
-                                    <version>${tinkar-starter-data.version}</version>
+                                    <groupId>network.ike.foundation</groupId>
+                                    <artifactId>ike-starter-set</artifactId>
+                                    <version>${ike-starter-set.version}</version>
                                     <classifier>unreasoned-pb</classifier>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/data</outputDirectory>
-                                    <destFileName>tinkar-starter-data-unreasoned-pb.zip</destFileName>
+                                    <destFileName>ike-starter-set-unreasoned-pb.zip</destFileName>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
@@ -231,6 +286,19 @@
                          RecordBuilder processor path fails on test-source
                          annotations (the known no-compiler-fork limitation). -->
                     <proc>none</proc>
+                    <!-- The nid build check (tinkar-core nid-check, IKE-Network/ike-issues#1244). -->
+                    <compilerArgs combine.children="append">
+                        <arg>-Xplugin:NidCheck report=${nid-check.report} allow=${nid-check.allow}</arg>
+                        <arg>-Xmaxwarns</arg>
+                        <arg>${javac.maxwarns}</arg>
+                    </compilerArgs>
+                    <annotationProcessorPaths combine.children="append">
+                        <path>
+                            <groupId>dev.ikm.tinkar</groupId>
+                            <artifactId>nid-check</artifactId>
+                            <version>${chronology-store.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
                 <executions>
                     <execution>
