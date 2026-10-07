@@ -1,8 +1,8 @@
 package network.ike.knowledge.provider;
 
 import dev.ikm.tinkar.terms.KernelTerm;
-import dev.ikm.tinkar.common.id.IntIdSet;
-import dev.ikm.tinkar.common.id.IntIds;
+import dev.ikm.tinkar.common.id.LongIdSet;
+import dev.ikm.tinkar.common.id.LongIds;
 import dev.ikm.tinkar.common.id.PublicId;
 import dev.ikm.tinkar.common.service.DiagnosticText;
 import dev.ikm.tinkar.common.service.PrimitiveData;
@@ -111,7 +111,7 @@ public final class StatedNavigationDeriver {
      */
     public static Summary derive(ViewCoordinateRecord view) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
-        int navigationPatternNid = KernelTerm.STATED_NAVIGATION_PATTERN.nid();
+        long navigationPatternNid = KernelTerm.STATED_NAVIGATION_PATTERN.nid();
         Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
@@ -120,9 +120,9 @@ public final class StatedNavigationDeriver {
         StampEntity<?> stamp = derivedContentStamp(transaction, view);
         int updated = 0;
         int created = 0;
-        for (int concept : definitions.concepts()) {
-            IntIdSet children = definitions.children(concept);
-            IntIdSet parents = definitions.parents(concept);
+        for (long concept : definitions.concepts()) {
+            LongIdSet children = definitions.children(concept);
+            LongIdSet parents = definitions.parents(concept);
             ImmutableList<Object> fields = order.fields(children, parents);
             Optional<SemanticEntity<SemanticEntityVersion>> existing = EntityService.get()
                     .semanticsForComponentOfPattern(concept, navigationPatternNid).findFirst();
@@ -131,7 +131,7 @@ public final class StatedNavigationDeriver {
                         stamp.nid(), fields));
                 created++;
             } else {
-                int semanticNid = existing.get().nid();
+                long semanticNid = existing.get().nid();
                 if (agrees(calculator.latest(semanticNid), order, children, parents)) {
                     continue;
                 }
@@ -169,7 +169,7 @@ public final class StatedNavigationDeriver {
      * @param navigationPatternNid the navigation pattern to sweep
      * @return the number of navigation semantics that received an empty version
      */
-    public static int emptyNavigationOfUndefined(ViewCoordinateRecord view, int navigationPatternNid) {
+    public static int emptyNavigationOfUndefined(ViewCoordinateRecord view, long navigationPatternNid) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
         Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
@@ -190,11 +190,11 @@ public final class StatedNavigationDeriver {
      * The parents a stated definition names: every concept reference inside a necessary
      * set or a sufficient set, the concept itself excluded.
      */
-    static Set<Integer> statedParents(int concept, DiTreeEntity definition) {
-        Set<Integer> parents = new TreeSet<>();
+    static Set<Long> statedParents(long concept, DiTreeEntity definition) {
+        Set<Long> parents = new TreeSet<>();
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
-            int setMeaning = set.getMeaningNid();
+            long setMeaning = set.getMeaningNid();
             if (setMeaning != KernelTerm.NECESSARY_SET.nid() && setMeaning != KernelTerm.SUFFICIENT_SET.nid()) {
                 continue;
             }
@@ -221,9 +221,9 @@ public final class StatedNavigationDeriver {
      * is neither defined nor named as a parent and whose latest version still names
      * children or parents.
      */
-    private static int emptyUndefined(ViewCalculator calculator, Definitions definitions, int navigationPatternNid,
+    private static int emptyUndefined(ViewCalculator calculator, Definitions definitions, long navigationPatternNid,
                                       FieldOrder order, StampEntity<?> stamp, Transaction transaction) {
-        List<Integer> undefined = new ArrayList<>();
+        List<Long> undefined = new ArrayList<>();
         calculator.forEachSemanticVersionOfPattern(navigationPatternNid,
                 (semanticVersion, patternVersion) -> {
                     if (!semanticVersion.active()
@@ -231,14 +231,14 @@ public final class StatedNavigationDeriver {
                         return;
                     }
                     ImmutableList<Object> fields = semanticVersion.fieldValues();
-                    if (((IntIdSet) fields.get(order.childrenIndex())).isEmpty()
-                            && ((IntIdSet) fields.get(order.parentsIndex())).isEmpty()) {
+                    if (((LongIdSet) fields.get(order.childrenIndex())).isEmpty()
+                            && ((LongIdSet) fields.get(order.parentsIndex())).isEmpty()) {
                         return;
                     }
                     undefined.add(semanticVersion.nid());
                 });
-        ImmutableList<Object> empty = order.fields(IntIds.set.empty(), IntIds.set.empty());
-        for (int semanticNid : undefined) {
+        ImmutableList<Object> empty = order.fields(LongIds.set.empty(), LongIds.set.empty());
+        for (long semanticNid : undefined) {
             SemanticRecord record = calculator.updateFields(semanticNid, empty, stamp.nid());
             transaction.addComponent(record);
             EntityService.get().putEntity(record);
@@ -253,7 +253,7 @@ public final class StatedNavigationDeriver {
                 view.getDefaultPathNid());
     }
 
-    private static FieldOrder fieldOrder(ViewCalculator calculator, int navigationPatternNid) {
+    private static FieldOrder fieldOrder(ViewCalculator calculator, long navigationPatternNid) {
         Latest<PatternEntityVersion> navigationPattern = calculator.latest(navigationPatternNid);
         if (navigationPattern.isAbsent()) {
             throw new IllegalStateException("The navigation pattern " + DiagnosticText.component(navigationPatternNid)
@@ -263,22 +263,22 @@ public final class StatedNavigationDeriver {
     }
 
     private static boolean agrees(Latest<SemanticEntityVersion> latest, FieldOrder order,
-                                  IntIdSet children, IntIdSet parents) {
+                                  LongIdSet children, LongIdSet parents) {
         if (latest.isAbsent() || !latest.get().active()) {
             return false;
         }
         ImmutableList<Object> fields = latest.get().fieldValues();
-        return sameMembers((IntIdSet) fields.get(order.childrenIndex()), children)
-                && sameMembers((IntIdSet) fields.get(order.parentsIndex()), parents);
+        return sameMembers((LongIdSet) fields.get(order.childrenIndex()), children)
+                && sameMembers((LongIdSet) fields.get(order.parentsIndex()), parents);
     }
 
-    private static boolean sameMembers(IntIdSet left, IntIdSet right) {
-        Set<Integer> leftMembers = new HashSet<>();
-        for (int nid : left.toArray()) {
+    private static boolean sameMembers(LongIdSet left, LongIdSet right) {
+        Set<Long> leftMembers = new HashSet<>();
+        for (long nid : left.toArray()) {
             leftMembers.add(nid);
         }
-        Set<Integer> rightMembers = new HashSet<>();
-        for (int nid : right.toArray()) {
+        Set<Long> rightMembers = new HashSet<>();
+        for (long nid : right.toArray()) {
             rightMembers.add(nid);
         }
         return leftMembers.equals(rightMembers);
@@ -295,10 +295,10 @@ public final class StatedNavigationDeriver {
      * @param fields     the version's fields, in the pattern's field order
      * @return the record put in the store
      */
-    static SemanticRecord mint(int concept, PublicId patternId, int patternNid, int stampNid,
+    static SemanticRecord mint(long concept, PublicId patternId, long patternNid, long stampNid,
                                ImmutableList<Object> fields) {
         UUID uuid = UuidT5Generator.singleSemanticUuid(patternId, PrimitiveData.publicId(concept));
-        int semanticNid = ScopedValue.where(SCOPED_PATTERN_PUBLICID_FOR_NID, patternId)
+        long semanticNid = ScopedValue.where(SCOPED_PATTERN_PUBLICID_FOR_NID, patternId)
                 .call(() -> PrimitiveData.nid(uuid));
         RecordListBuilder<SemanticVersionRecord> versions = RecordListBuilder.make();
         SemanticRecord record = SemanticRecordBuilder.builder()
@@ -314,13 +314,13 @@ public final class StatedNavigationDeriver {
         return record;
     }
 
-    private static int[] toArray(Set<Integer> nids) {
+    private static long[] toArray(Set<Long> nids) {
         if (nids == null) {
-            return new int[0];
+            return new long[0];
         }
-        int[] array = new int[nids.size()];
+        long[] array = new long[nids.size()];
         int index = 0;
-        for (int nid : nids) {
+        for (long nid : nids) {
             array[index++] = nid;
         }
         return array;
@@ -335,37 +335,37 @@ public final class StatedNavigationDeriver {
      * @param parentsByConcept the parents each defined concept names
      * @param childrenByConcept the concepts whose definitions name each parent
      */
-    record Definitions(Set<Integer> concepts, Map<Integer, Set<Integer>> parentsByConcept,
-                       Map<Integer, Set<Integer>> childrenByConcept) {
+    record Definitions(Set<Long> concepts, Map<Long, Set<Long>> parentsByConcept,
+                       Map<Long, Set<Long>> childrenByConcept) {
 
         /** Reads the active stated definitions of the pattern under the calculator's view. */
-        static Definitions read(ViewCalculator calculator, int statedPatternNid) {
-            Map<Integer, Set<Integer>> parentsByConcept = new HashMap<>();
-            Map<Integer, Set<Integer>> childrenByConcept = new HashMap<>();
+        static Definitions read(ViewCalculator calculator, long statedPatternNid) {
+            Map<Long, Set<Long>> parentsByConcept = new HashMap<>();
+            Map<Long, Set<Long>> childrenByConcept = new HashMap<>();
             calculator.forEachSemanticVersionOfPattern(statedPatternNid,
                     (semanticVersion, patternVersion) -> {
                         if (!semanticVersion.active()) {
                             return;
                         }
-                        int concept = semanticVersion.referencedComponentNid();
-                        Set<Integer> parents = statedParents(concept,
+                        long concept = semanticVersion.referencedComponentNid();
+                        Set<Long> parents = statedParents(concept,
                                 (DiTreeEntity) semanticVersion.fieldValues().get(0));
                         parentsByConcept.computeIfAbsent(concept, key -> new TreeSet<>()).addAll(parents);
-                        for (int parent : parents) {
+                        for (long parent : parents) {
                             childrenByConcept.computeIfAbsent(parent, key -> new TreeSet<>()).add(concept);
                         }
                     });
-            Set<Integer> concepts = new TreeSet<>(parentsByConcept.keySet());
+            Set<Long> concepts = new TreeSet<>(parentsByConcept.keySet());
             concepts.addAll(childrenByConcept.keySet());
             return new Definitions(Collections.unmodifiableSet(concepts), parentsByConcept, childrenByConcept);
         }
 
-        IntIdSet parents(int concept) {
-            return IntIds.set.of(toArray(parentsByConcept.get(concept)));
+        LongIdSet parents(long concept) {
+            return LongIds.set.of(toArray(parentsByConcept.get(concept)));
         }
 
-        IntIdSet children(int concept) {
-            return IntIds.set.of(toArray(childrenByConcept.get(concept)));
+        LongIdSet children(long concept) {
+            return LongIds.set.of(toArray(childrenByConcept.get(concept)));
         }
     }
 
@@ -385,7 +385,7 @@ public final class StatedNavigationDeriver {
             int children = 0;
             int parents = 1;
             for (int index = 0; index < fieldCount; index++) {
-                int meaning = pattern.fieldDefinitions().get(index).meaningNid();
+                long meaning = pattern.fieldDefinitions().get(index).meaningNid();
                 if (meaning == KernelTerm.RELATIONSHIP_DESTINATION.nid()) {
                     children = index;
                 } else if (meaning == KernelTerm.RELATIONSHIP_ORIGIN.nid()) {
@@ -398,7 +398,7 @@ public final class StatedNavigationDeriver {
             return new FieldOrder(children, parents);
         }
 
-        ImmutableList<Object> fields(IntIdSet children, IntIdSet parents) {
+        ImmutableList<Object> fields(LongIdSet children, LongIdSet parents) {
             Object[] values = new Object[2];
             values[childrenIndex] = children;
             values[parentsIndex] = parents;

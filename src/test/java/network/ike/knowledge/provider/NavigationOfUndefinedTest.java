@@ -3,8 +3,8 @@ package network.ike.knowledge.provider;
 import network.ike.foundation.ike.bindings.IkeTerms;
 import dev.ikm.tinkar.terms.EntityProxy;
 import dev.ikm.tinkar.terms.KernelTerm;
-import dev.ikm.tinkar.common.id.IntIdSet;
-import dev.ikm.tinkar.common.id.IntIds;
+import dev.ikm.tinkar.common.id.LongIdSet;
+import dev.ikm.tinkar.common.id.LongIds;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.coordinate.Coordinates;
@@ -51,7 +51,7 @@ class NavigationOfUndefinedTest {
     /** The default view, resolved once the store is open: its coordinates carry nids. */
     private static ViewCoordinateRecord VIEW;
 
-    private static Set<Integer> statedParentsBefore;
+    private static Set<Long> statedParentsBefore;
     private static StatedNavigationDeriver.Summary first;
     private static int inferredEmptied;
 
@@ -67,7 +67,7 @@ class NavigationOfUndefinedTest {
         // The unreasoned IKE starter set carries no navigation: a first derivation gives
         // the base its own, as an import would before anything is retired.
         StatedNavigationDeriver.derive(VIEW);
-        int retired = RETIRED.nid();
+        long retired = RETIRED.nid();
         statedParentsBefore = parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid());
         retireDefinition(EntityService.get().semanticsForComponentOfPattern(retired,
                 KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().nid());
@@ -76,7 +76,7 @@ class NavigationOfUndefinedTest {
         // The inferred navigation a reasoned file, or an earlier classification, leaves
         // behind for the concept: the reasoner will not touch it, having nothing to
         // classify.
-        int inferredPattern = KernelTerm.INFERRED_NAVIGATION_PATTERN.nid();
+        long inferredPattern = KernelTerm.INFERRED_NAVIGATION_PATTERN.nid();
         assertEquals(0, navigationSemantics(retired, inferredPattern).size(),
                 "the unreasoned base carries no inferred navigation for the concept");
         Transaction transaction = Transaction.make("Stale inferred navigation");
@@ -84,7 +84,7 @@ class NavigationOfUndefinedTest {
                 KernelTerm.SOLOR_OVERLAY_MODULE.nid(), KernelTerm.DEVELOPMENT_PATH.nid());
         SemanticRecord stale = StatedNavigationDeriver.mint(retired, PrimitiveData.publicId(inferredPattern),
                 inferredPattern, stamp.nid(),
-                Lists.immutable.of(IntIds.set.empty(), IntIds.set.of(KernelTerm.USER.nid())));
+                Lists.immutable.of(LongIds.set.empty(), LongIds.set.of(KernelTerm.USER.nid())));
         transaction.addComponent(stale);
         transaction.commit();
         assertEquals(Set.of(KernelTerm.USER.nid()), parents(retired, inferredPattern), "stale parents in place");
@@ -100,7 +100,7 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("A retired definition empties the concept's stated navigation")
     void retiredDefinitionEmptiesStatedNavigation() {
-        int retired = RETIRED.nid();
+        long retired = RETIRED.nid();
         assertEquals(Set.of(KernelTerm.USER.nid()), statedParentsBefore, "the base's derivation filed it under Author");
         assertEquals(Set.of(), parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
         assertEquals(Set.of(), children(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no children");
@@ -119,7 +119,7 @@ class NavigationOfUndefinedTest {
     @DisplayName("The sweep after classification empties the concept's inferred navigation")
     void inferredNavigationEmptiedAfterClassification() {
         assertEquals(1, inferredEmptied, "one stale inferred navigation semantic emptied");
-        int retired = RETIRED.nid();
+        long retired = RETIRED.nid();
         assertEquals(Set.of(), parents(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
         assertEquals(Set.of(), children(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
     }
@@ -127,7 +127,7 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("A concept that keeps its definition is untouched")
     void definedConceptUntouched() {
-        int kept = KEPT.nid();
+        long kept = KEPT.nid();
         assertEquals(Set.of(KernelTerm.USER.nid()), parents(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()));
         assertEquals(1, navigationVersions(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()),
                 "the one version the base's derivation wrote");
@@ -146,7 +146,7 @@ class NavigationOfUndefinedTest {
     }
 
     /** Retires the definition the way a ledger would: an inactive version restating its fields. */
-    private static void retireDefinition(int axiomsNid) {
+    private static void retireDefinition(long axiomsNid) {
         ViewCalculator view = ViewCalculatorWithCache.getCalculator(VIEW);
         Latest<SemanticEntityVersion> latest = view.latest(axiomsNid);
         assertTrue(latest.isPresent() && latest.get().active(), "an active definition to retire");
@@ -159,29 +159,29 @@ class NavigationOfUndefinedTest {
         transaction.commit();
     }
 
-    private static Set<Integer> parents(int conceptNid, int patternNid) {
+    private static Set<Long> parents(long conceptNid, long patternNid) {
         return field(conceptNid, patternNid, 1);
     }
 
-    private static Set<Integer> children(int conceptNid, int patternNid) {
+    private static Set<Long> children(long conceptNid, long patternNid) {
         return field(conceptNid, patternNid, 0);
     }
 
-    private static Set<Integer> field(int conceptNid, int patternNid, int index) {
+    private static Set<Long> field(long conceptNid, long patternNid, int index) {
         ViewCalculator view = ViewCalculatorWithCache.getCalculator(VIEW);
         List<SemanticEntity<SemanticEntityVersion>> semantics = navigationSemantics(conceptNid, patternNid);
         assertEquals(1, semantics.size(), "one navigation semantic for "
                 + view.getFullyQualifiedNameTextOrNid(conceptNid) + " under " + PrimitiveData.text(patternNid));
         Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst().nid());
         assertTrue(latest.isPresent(), "a latest navigation version");
-        Set<Integer> members = new HashSet<>();
-        for (int nid : ((IntIdSet) latest.get().fieldValues().get(index)).toArray()) {
+        Set<Long> members = new HashSet<>();
+        for (long nid : ((LongIdSet) latest.get().fieldValues().get(index)).toArray()) {
             members.add(nid);
         }
         return members;
     }
 
-    private static int navigationVersions(int conceptNid, int patternNid) {
+    private static int navigationVersions(long conceptNid, long patternNid) {
         int count = 0;
         for (SemanticEntity<SemanticEntityVersion> semantic : navigationSemantics(conceptNid, patternNid)) {
             count += semantic.versions().size();
@@ -189,7 +189,7 @@ class NavigationOfUndefinedTest {
         return count;
     }
 
-    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(int conceptNid, int patternNid) {
+    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(long conceptNid, long patternNid) {
         return EntityService.get().semanticsForComponentOfPattern(conceptNid, patternNid).toList();
     }
 }

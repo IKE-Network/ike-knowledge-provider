@@ -80,7 +80,7 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
                 Optional<Path> konceptsYml = request.konceptsYmlFile();
                 if (konceptsYml.isPresent()) {
                     Files.createDirectories(konceptsYml.get().toAbsolutePath().getParent());
-                    int narrativePatternNid = EntityService.get()
+                    long narrativePatternNid = EntityService.get()
                             .nidForPublicId(PublicIds.of(NARRATIVE_PATTERN_UUID));
                     Files.writeString(konceptsYml.get(), KonceptExtractor.extractYaml(narrativePatternNid));
                 }

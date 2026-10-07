@@ -165,7 +165,7 @@ final class ReasonedPbExportDriver {
         }
     }
 
-    private static void reportIfAbsent(SemanticEntity<?> sem, String label, int refNid, List<String> reports) {
+    private static void reportIfAbsent(SemanticEntity<?> sem, String label, long refNid, List<String> reports) {
         if (EntityHandle.get(refNid).isPresent()) {
             return;
         }
@@ -175,7 +175,7 @@ final class ReasonedPbExportDriver {
                 + ", referencedComponent=\"" + safeText(sem.referencedComponentNid()) + "\")");
     }
 
-    private static String safePid(int nid) {
+    private static String safePid(long nid) {
         try {
             return PrimitiveData.publicId(nid).idString();
         } catch (RuntimeException e) {
@@ -183,7 +183,7 @@ final class ReasonedPbExportDriver {
         }
     }
 
-    private static String safeText(int nid) {
+    private static String safeText(long nid) {
         try {
             return PrimitiveData.text(nid);
         } catch (RuntimeException e) {

@@ -2,7 +2,7 @@ package network.ike.knowledge.provider;
 
 import network.ike.foundation.ike.bindings.IkeTerms;
 import dev.ikm.tinkar.terms.KernelTerm;
-import dev.ikm.tinkar.common.id.IntIdSet;
+import dev.ikm.tinkar.common.id.LongIdSet;
 import dev.ikm.tinkar.common.id.PublicId;
 import dev.ikm.tinkar.terms.EntityProxy;
 import dev.ikm.tinkar.common.service.CachingService;
@@ -90,8 +90,8 @@ class StatedNavigationDeriverTest {
     @Test
     @DisplayName("A new concept's parents and children follow its stated definition")
     void newConceptsGetNavigation() {
-        int alpha = ledger.conceptRef("Alpha (Test)").nid();
-        int beta = ledger.conceptRef("Beta (Test)").nid();
+        long alpha = ledger.conceptRef("Alpha (Test)").nid();
+        long beta = ledger.conceptRef("Beta (Test)").nid();
         assertEquals(Set.of(IkeTerms.MODEL_CONCEPT.nid()), parents(alpha), "Alpha's parents");
         assertEquals(Set.of(beta), children(alpha), "Alpha's children");
         assertEquals(Set.of(alpha), parents(beta), "Beta's parents");
@@ -104,7 +104,7 @@ class StatedNavigationDeriverTest {
     @Test
     @DisplayName("A re-parented base concept leaves its old parent's children and joins the new one's")
     void reparentedConceptMoves() {
-        int reparented = REPARENTED.nid();
+        long reparented = REPARENTED.nid();
         assertEquals(Set.of(IkeTerms.MODEL_CONCEPT.nid()), parents(reparented), "the new parent");
         assertFalse(children(KernelTerm.USER.nid()).contains(reparented),
                 "Author no longer lists it, so a login dialog reading stated navigation no longer offers it");
@@ -140,29 +140,29 @@ class StatedNavigationDeriverTest {
         assertFalse(children(KernelTerm.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
     }
 
-    private static Set<Integer> parents(int conceptNid) {
+    private static Set<Long> parents(long conceptNid) {
         return field(conceptNid, 1);
     }
 
-    private static Set<Integer> children(int conceptNid) {
+    private static Set<Long> children(long conceptNid) {
         return field(conceptNid, 0);
     }
 
-    private static Set<Integer> field(int conceptNid, int index) {
+    private static Set<Long> field(long conceptNid, int index) {
         ViewCalculator view = ViewCalculatorWithCache.getCalculator(Coordinates.View.DefaultView());
         List<SemanticEntity<SemanticEntityVersion>> semantics = navigationSemantics(conceptNid);
         assertEquals(1, semantics.size(), "one stated navigation semantic for "
                 + view.getFullyQualifiedNameTextOrNid(conceptNid));
         Latest<SemanticEntityVersion> latest = view.latest(semantics.getFirst().nid());
         assertTrue(latest.isPresent(), "a latest navigation version");
-        Set<Integer> members = new HashSet<>();
-        for (int nid : ((IntIdSet) latest.get().fieldValues().get(index)).toArray()) {
+        Set<Long> members = new HashSet<>();
+        for (long nid : ((LongIdSet) latest.get().fieldValues().get(index)).toArray()) {
             members.add(nid);
         }
         return members;
     }
 
-    private static int navigationVersions(int conceptNid) {
+    private static int navigationVersions(long conceptNid) {
         int count = 0;
         for (SemanticEntity<SemanticEntityVersion> semantic : navigationSemantics(conceptNid)) {
             count += semantic.versions().size();
@@ -170,7 +170,7 @@ class StatedNavigationDeriverTest {
         return count;
     }
 
-    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(int conceptNid) {
+    private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(long conceptNid) {
         return EntityService.get().semanticsForComponentOfPattern(conceptNid,
                 KernelTerm.STATED_NAVIGATION_PATTERN.nid()).toList();
     }
