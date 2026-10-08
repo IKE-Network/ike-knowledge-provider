@@ -182,12 +182,6 @@
         </dependency>
         <dependency>
             <groupId>dev.ikm.tinkar</groupId>
-            <artifactId>data-ephemeral-provider</artifactId>
-            <version>${chronology-store.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>dev.ikm.tinkar</groupId>
             <artifactId>entity-provider</artifactId>
             <version>${chronology-store.version}</version>
             <scope>runtime</scope>
