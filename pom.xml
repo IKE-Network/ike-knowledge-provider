@@ -85,10 +85,13 @@
         <!-- ike-knowledge-spi 239 ships the #951 verification contract this
              provider implements; 238 carried the #933 reasoned-pb export. -->
         <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
-        <!-- The base knowledge file the stated-navigation tests derive over
-             (IKE-Network/ike-issues#1123): the unreasoned IKE starter set, from
-             starter-data-ws, which is built with this provider, so a fresh machine builds
-             this repository without tests, then starter-data-ws, then tests it. -->
+        <!-- The IKE starter set every test of this module reads (IKE-Network/ike-issues#1123):
+             its unreasoned export and its bindings, from starter-data-ws, which is built with
+             this provider. Both live under the starter-set profile, off by default, so the
+             default build needs nothing from starter-data-ws and the provider-to-bindings
+             cycle has no hold on a fresh machine (IKE-Network/ike-issues#1260): build this
+             module, then starter-data-ws, then `-Pstarter-set` here to compile and run the
+             tests. -->
         <ike-starter-set.version>1-SNAPSHOT</ike-starter-set.version>
         <java.version>27</java.version>
         <!-- Lucene 10.5.1 turns its Vector API code on only up to Java 26 and warns on 27.
@@ -202,28 +205,6 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- The IKE starter set's bindings (IkeTerms) for the components the tests name beyond the kernel. -->
-
-        <dependency>
-
-            <groupId>network.ike.foundation</groupId>
-
-            <artifactId>ike-bindings</artifactId>
-
-            <version>${ike-starter-set.version}</version>
-
-            <scope>test</scope>
-
-            <!-- ike-bindings depends back on this module; without the exclusion an installed
-                 copy of this module's own jar joins its test path beside target/classes. -->
-            <exclusions>
-                <exclusion>
-                    <groupId>network.ike.knowledge</groupId>
-                    <artifactId>ike-knowledge-provider</artifactId>
-                </exclusion>
-            </exclusions>
-
-        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -246,35 +227,6 @@
 
     <build>
         <plugins>
-            <!-- The base knowledge file the tests load into an ephemeral store
-                 (IKE-Network/ike-issues#1123). -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>stage-base-knowledge</id>
-                        <phase>process-test-resources</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>network.ike.foundation</groupId>
-                                    <artifactId>ike-starter-set</artifactId>
-                                    <version>${ike-starter-set.version}</version>
-                                    <classifier>unreasoned-pb</classifier>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/data</outputDirectory>
-                                    <destFileName>ike-starter-set-unreasoned-pb.zip</destFileName>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <!-- Tests compile and run on the classpath (surefire already does via
                  ike-parent): the module patch would need junit in the module graph,
                  and the classpath is the seam's real runtime anyway. -->
@@ -308,10 +260,100 @@
                         <configuration>
                             <proc>none</proc>
                             <useModulePath>false</useModulePath>
+                            <!-- Every test source reads the starter set or its bindings: the
+                                 starter-set profile compiles them (IKE-Network/ike-issues#1260). -->
+                            <skip>true</skip>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+            <!-- Nothing to run without the profile, and classes left in target from a profile
+                 build must not run without it either. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- The tests, which read the IKE starter set's unreasoned export and its bindings
+             (IKE-Network/ike-issues#1123): on after starter-data-ws is built with this
+             provider. Off by default, since the bindings depend back on this module
+             (IKE-Network/ike-issues#1260). -->
+        <profile>
+            <id>starter-set</id>
+            <dependencies>
+                <!-- The starter set's bindings (IkeTerms) for the components the tests name beyond the kernel. -->
+                <dependency>
+                    <groupId>network.ike.foundation</groupId>
+                    <artifactId>ike-bindings</artifactId>
+                    <version>${ike-starter-set.version}</version>
+                    <scope>test</scope>
+                    <!-- ike-bindings depends back on this module; without the exclusion an installed
+                         copy of this module's own jar joins its test path beside target/classes. -->
+                    <exclusions>
+                        <exclusion>
+                            <groupId>network.ike.knowledge</groupId>
+                            <artifactId>ike-knowledge-provider</artifactId>
+                        </exclusion>
+                    </exclusions>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <!-- The base knowledge file the tests load into an ephemeral store. -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>stage-base-knowledge</id>
+                                <phase>process-test-resources</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>network.ike.foundation</groupId>
+                                            <artifactId>ike-starter-set</artifactId>
+                                            <version>${ike-starter-set.version}</version>
+                                            <classifier>unreasoned-pb</classifier>
+                                            <type>zip</type>
+                                            <overWrite>false</overWrite>
+                                            <outputDirectory>${project.build.directory}/data</outputDirectory>
+                                            <destFileName>ike-starter-set-unreasoned-pb.zip</destFileName>
+                                        </artifactItem>
+                                    </artifactItems>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-testCompile</id>
+                                <configuration>
+                                    <skip>false</skip>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <skip>false</skip>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
