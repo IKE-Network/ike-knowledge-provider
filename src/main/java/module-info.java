@@ -19,4 +19,12 @@ module network.ike.knowledge.provider {
             with network.ike.knowledge.provider.ChronologyStoreAssembler;
     provides network.ike.knowledge.spi.KnowledgeVerifier
             with network.ike.knowledge.provider.ChronologyStoreVerifier;
+    provides network.ike.knowledge.spi.ChangeSetInspector
+            with network.ike.knowledge.provider.TinkarChangeSetInspector;
+    provides network.ike.knowledge.spi.ChangeSetVerifier
+            with network.ike.knowledge.provider.TinkarChangeSetVerifier;
+    provides network.ike.knowledge.spi.ChangeSetExpander
+            with network.ike.knowledge.provider.TinkarChangeSetExpander;
+    provides network.ike.knowledge.spi.ChangeSetCompactor
+            with network.ike.knowledge.provider.TinkarChangeSetCompactor;
 }

@@ -82,9 +82,9 @@
              both until the next train. A release pins the released engine it rides, as
              release 6 rode 1.127.6 (IKE-Network/ike-issues#1123). -->
         <chronology-store.version>1.127.7-SNAPSHOT</chronology-store.version>
-        <!-- ike-knowledge-spi 239 ships the #951 verification contract this
-             provider implements; 238 carried the #933 reasoned-pb export. -->
-        <ike-knowledge-spi.version>239</ike-knowledge-spi.version>
+        <!-- ike-knowledge-spi 263 ships the change set services (ChangeSetInspector, Verifier,
+             Expander, Compactor; IKE-Network/ike-issues#1275) beside the #951 verification contract. -->
+        <ike-knowledge-spi.version>263</ike-knowledge-spi.version>
         <!-- The IKE starter set every test of this module reads (IKE-Network/ike-issues#1123):
              its unreasoned export and its bindings, from starter-data-ws, which is built with
              this provider. Both live under the starter-set profile, off by default, so the
