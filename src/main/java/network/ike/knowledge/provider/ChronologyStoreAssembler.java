@@ -14,6 +14,10 @@ import dev.ikm.tinkar.entity.EntityService;
 import dev.ikm.tinkar.entity.aggregator.TemporalEntityAggregator;
 import dev.ikm.tinkar.entity.export.ExportEntitiesToProtobufFile;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
+import dev.ikm.tinkar.importer.ImportReport;
+import dev.ikm.tinkar.importer.ImportSource;
+import dev.ikm.tinkar.importer.KnowledgeImporters;
+import dev.ikm.tinkar.importer.StoreWriter;
 import dev.ikm.tinkar.reasoner.service.ClassifierResults;
 import dev.ikm.tinkar.reasoner.service.ReasonerService;
 import network.ike.knowledge.spi.ArtifactInput;
@@ -42,7 +46,7 @@ import java.util.zip.ZipInputStream;
 /**
  * Assembles a knowledge base in a Spined Array store — the chronology-store
  * {@link KnowledgeBaseAssembler}: an optional store-seed layer, ordered entity loads
- * inside the bulk-load bracket, the stated navigation derived from the loaded stated
+ * inside the bulk-load bracket and source releases written by their knowledge importers, the stated navigation derived from the loaded stated
  * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
  * whose inferred axiom and navigation semantics make the assembled KB navigable the
  * moment a browser opens it, followed by the emptying of the inferred navigation of
@@ -58,6 +62,9 @@ import java.util.zip.ZipInputStream;
 public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     private static final String DEFAULT_REASONER = "ElkSnomedReasonerService";
+
+    /** Where a knowledge browser keeps its preferences, relative to the store root. */
+    private static final String PREFERENCES = "preferences";
 
     /** Creates the provider (ServiceLoader requirement). */
     public ChronologyStoreAssembler() {
@@ -88,18 +95,27 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             PrimitiveData.selectControllerByName("Open SpinedArrayStore");
             PrimitiveData.start();
             try {
-                EntityService.get().beginLoadPhase();
-                try {
-                    for (int i = firstLoad; i < inputs.size(); i++) {
-                        ArtifactInput input = inputs.get(i);
-                        EntityCountSummary summary =
-                                new LoadEntitiesFromProtobufFile(input.path().toFile()).compute();
-                        loads.add(new LoadSummary(input.path().getFileName().toString(),
-                                new EntityCounts(summary.conceptCount(), summary.semanticCount(),
-                                        summary.patternCount(), summary.stampCount())));
+                // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
+                int i = firstLoad;
+                while (i < inputs.size()) {
+                    if (inputs.get(i).role() == ArtifactInput.Role.SOURCE) {
+                        loads.add(importSource(inputs.get(i)));
+                        i++;
+                        continue;
                     }
-                } finally {
-                    EntityService.get().endLoadPhase();
+                    EntityService.get().beginLoadPhase();
+                    try {
+                        for (; i < inputs.size() && inputs.get(i).role() != ArtifactInput.Role.SOURCE; i++) {
+                            ArtifactInput input = inputs.get(i);
+                            EntityCountSummary summary =
+                                    new LoadEntitiesFromProtobufFile(input.path().toFile()).compute();
+                            loads.add(new LoadSummary(input.path().getFileName().toString(),
+                                    new EntityCounts(summary.conceptCount(), summary.semanticCount(),
+                                            summary.patternCount(), summary.stampCount())));
+                        }
+                    } finally {
+                        EntityService.get().endLoadPhase();
+                    }
                 }
 
                 // The loaded files carry stated navigation as it stood when they were
@@ -132,16 +148,55 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
             if (request.installDirectory().isPresent()) {
                 Path install = request.installDirectory().get();
+                // The browser's preferences (its windows, and the view and edit coordinates a
+                // person chose) belong to the person, not the build: kept across the install.
+                // Captured change sets the goal has harvested before assembly; the replaced store
+                // starts with none.
+                Path preferences = install.resolve(PREFERENCES);
+                Path keptPreferences = null;
+                if (Files.isDirectory(preferences)) {
+                    keptPreferences = Files.createTempDirectory("kb-preferences-");
+                    copyRecursively(preferences, keptPreferences);
+                }
                 if (Files.exists(install)) {
                     deleteRecursively(install);
                 }
                 copyRecursively(storeRoot, install);
+                if (keptPreferences != null) {
+                    copyRecursively(keptPreferences, install.resolve(PREFERENCES));
+                    deleteRecursively(keptPreferences);
+                }
             }
 
             return new AssembleResult(loads, classification, Optional.of(report), reasonedPb);
         } catch (IOException e) {
             throw new UncheckedIOException("Knowledge-base assembly failed", e);
         }
+    }
+
+    /**
+     * Writes a source release into the open store with the knowledge importer it names,
+     * found on the classpath ({@code dev.ikm.tinkar:importer-api}), on the development view.
+     * An importer counts what it wrote, not entities by kind, so the summary names the
+     * release, the importer and its counts, and carries no entity counts.
+     */
+    private static LoadSummary importSource(ArtifactInput input) {
+        String importerName = input.importer().orElseThrow();
+        // Inside the bulk-load bracket, as a load: outside it every write is indexed and the
+        // searcher refreshed, one write at a time, which a release of millions of rows cannot
+        // afford. The bracket is not nested; an importer that loads a file midway re-enters it.
+        ImportReport report;
+        EntityService.get().beginLoadPhase();
+        try {
+            report = KnowledgeImporters.named(importerName).importInto(
+                    new ImportSource(input.path(), input.options()),
+                    new StoreWriter(Calculators.Stamp.DevelopmentLatest()));
+        } finally {
+            EntityService.get().endLoadPhase();
+        }
+        return new LoadSummary(report.sourceVersion() + " via " + importerName + " (written " + report.written()
+                + ", versioned " + report.versioned() + ", unchanged " + report.unchanged() + ", in "
+                + report.elapsed() + ")", new EntityCounts(0, 0, 0, 0));
     }
 
     /**

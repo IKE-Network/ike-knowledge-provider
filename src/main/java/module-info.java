@@ -10,6 +10,7 @@ module network.ike.knowledge.provider {
     requires dev.ikm.tinkar.common;
     requires dev.ikm.tinkar.terms;
     requires dev.ikm.tinkar.reasoner.service;
+    requires dev.ikm.tinkar.importer;
     requires org.eclipse.collections.api;
     requires org.slf4j;
 
