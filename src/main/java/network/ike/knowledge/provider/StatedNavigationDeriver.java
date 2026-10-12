@@ -71,7 +71,7 @@ import static dev.ikm.tinkar.common.service.PrimitiveData.SCOPED_PATTERN_PUBLICI
  * named as a parent: its former parents' children lists drop it, but its own
  * navigation semantic would keep parents that list it nowhere. The derivation therefore
  * also empties the stated navigation of every such concept, and
- * {@link #emptyNavigationOfUndefined(ViewCoordinateRecord, int)} does the same for the
+ * {@link #emptyNavigationOfUndefined(ViewCoordinateRecord, long)} does the same for the
  * inferred pattern once the reasoner has run, since the reasoner writes only the
  * concepts it classified (IKE-Network/ike-issues#1131).
  */
