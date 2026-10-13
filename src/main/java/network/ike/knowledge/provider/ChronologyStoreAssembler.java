@@ -100,9 +100,17 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
                 int i = firstLoad;
                 boolean searchIndexStale = false;
+                // The stamps the source imports create: what a source delta export carries.
+                java.util.Set<Long> sourceStamps = new java.util.HashSet<>();
                 while (i < inputs.size()) {
                     if (inputs.get(i).role() == ArtifactInput.Role.SOURCE) {
+                        java.util.Set<Long> before = request.sourceDeltaFile().isPresent() ? stampNids() : java.util.Set.of();
                         loads.add(importSource(inputs.get(i)));
+                        if (request.sourceDeltaFile().isPresent()) {
+                            java.util.Set<Long> after = stampNids();
+                            after.removeAll(before);
+                            sourceStamps.addAll(after);
+                        }
                         // Past the live-index threshold the load phase stops indexing; the next
                         // bracket resets the policy, so the need is remembered here.
                         searchIndexStale |= EntityService.get().loadPhaseSearchPolicy().recreateRequired();
@@ -127,6 +135,11 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     recreateSearchIndex();
                 }
 
+                // One source's artifact: what its import wrote, before anything is derived from it.
+                if (request.sourceDeltaFile().isPresent()) {
+                    exportSourceDelta(request.sourceDeltaFile().get(), sourceStamps);
+                }
+
                 // The loaded files carry stated navigation as it stood when they were
                 // written; a ledger that re-declares definitions leaves it stale, and the
                 // reasoner writes inferred navigation only (IKE-Network/ike-issues#1123).
@@ -141,6 +154,12 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     // (IKE-Network/ike-issues#1131).
                     StatedNavigationDeriver.emptyNavigationOfUndefined(Coordinates.View.DefaultView(),
                             KernelTerm.INFERRED_NAVIGATION_PATTERN.nid());
+                }
+
+                // The extension's koncepts, read from the whole classified store, so a concept
+                // authored under a release's concept keeps its parent's name.
+                if (request.konceptsYmlFile().isPresent()) {
+                    writeExtensionKoncepts(request.konceptsYmlFile().get(), request.konceptsModules());
                 }
 
                 // The reasoned-pb export must see the classified store while it is
@@ -181,6 +200,51 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         } catch (IOException e) {
             throw new UncheckedIOException("Knowledge-base assembly failed", e);
         }
+    }
+
+    /** Every stamp in the store, by nid. */
+    private static java.util.Set<Long> stampNids() {
+        java.util.Set<Long> nids = java.util.concurrent.ConcurrentHashMap.newKeySet();
+        EntityService.get().forEachStampEntity(stamp -> nids.add(stamp.nid()));
+        return new java.util.HashSet<>(nids);
+    }
+
+    /**
+     * Exports what the source imports wrote, and only that: every version under a stamp they
+     * created, unclassified; references to the inputs before them travel by public id.
+     */
+    private static void exportSourceDelta(Path file, java.util.Set<Long> sourceStamps) throws IOException {
+        Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        new ExportEntitiesToProtobufFile(file.toFile(),
+                new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE), sourceStamps::contains).compute();
+    }
+
+    /**
+     * Writes the koncepts YAML of the store's extension: the concepts and patterns with a
+     * version in one of the extension's modules.
+     *
+     * @param file        the YAML file
+     * @param moduleUuids the extension's modules, by UUID
+     */
+    private static void writeExtensionKoncepts(Path file, java.util.Set<String> moduleUuids) throws IOException {
+        java.util.Set<Long> moduleNids = new java.util.HashSet<>();
+        for (String uuid : moduleUuids) {
+            moduleNids.add(PrimitiveData.nid(dev.ikm.tinkar.common.id.PublicIds.of(java.util.UUID.fromString(uuid))));
+        }
+        java.util.function.LongPredicate inExtension = nid -> dev.ikm.tinkar.entity.EntityHandle.get(nid).entity()
+                .map(entity -> entity.versions().anySatisfy(version ->
+                        moduleNids.contains(((dev.ikm.tinkar.entity.EntityVersion) version).stamp().moduleNid())))
+                .orElse(false);
+        long narrativePatternNid = EntityService.get().nidForPublicId(
+                dev.ikm.tinkar.common.id.PublicIds.of(ChronologyStoreExporter.NARRATIVE_PATTERN_UUID));
+        Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        Files.writeString(file, dev.ikm.tinkar.entity.builder.KonceptExtractor.extractYaml(narrativePatternNid, inExtension));
     }
 
     /**

@@ -50,7 +50,7 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
      * so the reference belongs at this ecosystem-specific layer
      * (IKE-Network/ike-issues#879).
      */
-    private static final UUID NARRATIVE_PATTERN_UUID =
+    static final UUID NARRATIVE_PATTERN_UUID =
             UUID.fromString("89b831a1-e773-5f83-87a6-2cfc8e107fb0");
 
     /** Creates the provider (ServiceLoader requirement). */

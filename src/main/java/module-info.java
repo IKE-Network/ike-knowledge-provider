@@ -28,4 +28,6 @@ module network.ike.knowledge.provider {
             with network.ike.knowledge.provider.TinkarChangeSetExpander;
     provides network.ike.knowledge.spi.ChangeSetCompactor
             with network.ike.knowledge.provider.TinkarChangeSetCompactor;
+    provides network.ike.knowledge.spi.ChangeSetMerger
+            with network.ike.knowledge.provider.TinkarChangeSetMerger;
 }
