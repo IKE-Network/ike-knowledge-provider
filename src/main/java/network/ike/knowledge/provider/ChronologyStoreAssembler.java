@@ -5,7 +5,9 @@ import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PluggableService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
+import dev.ikm.tinkar.common.service.SearchService;
 import dev.ikm.tinkar.common.service.ServiceKeys;
+import dev.ikm.tinkar.common.service.ServiceLifecycleManager;
 import dev.ikm.tinkar.common.service.ServiceProperties;
 import dev.ikm.tinkar.common.service.TrackingCallable;
 import dev.ikm.tinkar.coordinate.Calculators;
@@ -97,9 +99,13 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             try {
                 // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
                 int i = firstLoad;
+                boolean searchIndexStale = false;
                 while (i < inputs.size()) {
                     if (inputs.get(i).role() == ArtifactInput.Role.SOURCE) {
                         loads.add(importSource(inputs.get(i)));
+                        // Past the live-index threshold the load phase stops indexing; the next
+                        // bracket resets the policy, so the need is remembered here.
+                        searchIndexStale |= EntityService.get().loadPhaseSearchPolicy().recreateRequired();
                         i++;
                         continue;
                     }
@@ -116,6 +122,9 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     } finally {
                         EntityService.get().endLoadPhase();
                     }
+                }
+                if (searchIndexStale) {
+                    recreateSearchIndex();
                 }
 
                 // The loaded files carry stated navigation as it stood when they were
@@ -171,6 +180,23 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             return new AssembleResult(loads, classification, Optional.of(report), reasonedPb);
         } catch (IOException e) {
             throw new UncheckedIOException("Knowledge-base assembly failed", e);
+        }
+    }
+
+    /**
+     * Rebuilds the search index from the store. A source import writes far more semantics than
+     * the load phase indexes live, and unlike a protobuf load it does not rebuild the index
+     * itself: without this, a browser's search finds only the first few thousand descriptions.
+     */
+    private static void recreateSearchIndex() {
+        Optional<SearchService> search = ServiceLifecycleManager.get().getRunningService(SearchService.class);
+        if (search.isEmpty()) {
+            return;
+        }
+        try {
+            search.get().recreateIndex().get();
+        } catch (Exception e) {
+            throw new IllegalStateException("Rebuilding the search index after source imports failed", e);
         }
     }
 
