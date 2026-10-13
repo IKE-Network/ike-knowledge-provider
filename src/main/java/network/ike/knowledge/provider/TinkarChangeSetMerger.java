@@ -80,8 +80,20 @@ public final class TinkarChangeSetMerger implements ChangeSetMerger {
                 for (Path changeSet : changeSets) {
                     new LoadEntitiesFromProtobufFile(changeSet.toFile()).compute();
                 }
+                // With modules, only the versions stamped in them: the extension's content, not
+                // what a browser wrote on its own in the same session.
+                java.util.function.LongPredicate keep = null;
+                if (!request.modules().isEmpty()) {
+                    java.util.Set<Long> moduleNids = new java.util.HashSet<>();
+                    for (String uuid : request.modules()) {
+                        moduleNids.add(PrimitiveData.nid(dev.ikm.tinkar.common.id.PublicIds.of(java.util.UUID.fromString(uuid))));
+                    }
+                    keep = stampNid -> dev.ikm.tinkar.entity.EntityService.get().getStamp(stampNid)
+                            .map(stamp -> moduleNids.contains(stamp.moduleNid())).orElse(false);
+                    lines.add("keeping only versions in modules " + new java.util.TreeSet<>(request.modules()));
+                }
                 EntityCountSummary summary = new ExportEntitiesToProtobufFile(target.toFile(),
-                        new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE)).compute();
+                        new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE), keep).compute();
                 return new ChangeSetReport(true, "Merged " + changeSets.size() + " change set(s) into "
                         + target.getFileName() + ": " + summary.conceptCount() + " concepts, "
                         + summary.semanticCount() + " semantics, " + summary.patternCount() + " patterns, "
