@@ -1,6 +1,7 @@
 package network.ike.knowledge.provider;
 
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.KernelConcept;
+import dev.ikm.tinkar.terms.KernelPattern;
 import dev.ikm.tinkar.common.id.LongIdSet;
 import dev.ikm.tinkar.common.id.LongIds;
 import dev.ikm.tinkar.common.id.PublicId;
@@ -111,7 +112,7 @@ public final class StatedNavigationDeriver {
      */
     public static Summary derive(ViewCoordinateRecord view) {
         ViewCalculator calculator = ViewCalculatorWithCache.getCalculator(view);
-        long navigationPatternNid = KernelTerm.STATED_NAVIGATION_PATTERN.nid();
+        long navigationPatternNid = KernelPattern.STATED_NAVIGATION_PATTERN.nid();
         Definitions definitions = Definitions.read(calculator, view.logicCoordinate().statedAxiomsPatternNid());
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
@@ -195,18 +196,18 @@ public final class StatedNavigationDeriver {
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
             long setMeaning = set.getMeaningNid();
-            if (setMeaning != KernelTerm.NECESSARY_SET.nid() && setMeaning != KernelTerm.SUFFICIENT_SET.nid()) {
+            if (setMeaning != KernelConcept.NECESSARY_SET.nid() && setMeaning != KernelConcept.SUFFICIENT_SET.nid()) {
                 continue;
             }
             for (EntityVertex connective : definition.successors(set)) {
-                if (connective.getMeaningNid() != KernelTerm.AND.nid()) {
+                if (connective.getMeaningNid() != KernelConcept.AND.nid()) {
                     continue;
                 }
                 for (EntityVertex atom : definition.successors(connective)) {
-                    if (atom.getMeaningNid() != KernelTerm.CONCEPT_REFERENCE.nid()) {
+                    if (atom.getMeaningNid() != KernelConcept.CONCEPT_REFERENCE.nid()) {
                         continue;
                     }
-                    Object reference = atom.propertyFast(KernelTerm.CONCEPT_REFERENCE);
+                    Object reference = atom.propertyFast(KernelConcept.CONCEPT_REFERENCE);
                     if (reference instanceof ConceptFacade facade && facade.nid() != concept) {
                         parents.add(facade.nid());
                     }
@@ -386,9 +387,9 @@ public final class StatedNavigationDeriver {
             int parents = 1;
             for (int index = 0; index < fieldCount; index++) {
                 long meaning = pattern.fieldDefinitions().get(index).meaningNid();
-                if (meaning == KernelTerm.RELATIONSHIP_DESTINATION.nid()) {
+                if (meaning == KernelConcept.RELATIONSHIP_DESTINATION.nid()) {
                     children = index;
-                } else if (meaning == KernelTerm.RELATIONSHIP_ORIGIN.nid()) {
+                } else if (meaning == KernelConcept.RELATIONSHIP_ORIGIN.nid()) {
                     parents = index;
                 }
             }

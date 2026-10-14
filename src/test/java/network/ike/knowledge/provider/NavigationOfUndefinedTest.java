@@ -1,8 +1,8 @@
 package network.ike.knowledge.provider;
 
-import network.ike.foundation.ike.bindings.IkeTerms;
-import dev.ikm.tinkar.terms.EntityProxy;
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.ConceptFacade;
+import dev.ikm.tinkar.terms.KernelConcept;
+import dev.ikm.tinkar.terms.KernelPattern;
 import dev.ikm.tinkar.common.id.LongIdSet;
 import dev.ikm.tinkar.common.id.LongIds;
 import dev.ikm.tinkar.common.service.CachingService;
@@ -20,6 +20,7 @@ import dev.ikm.tinkar.entity.StampEntity;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.entity.transaction.Transaction;
 import dev.ikm.tinkar.terms.State;
+import network.ike.foundation.ike.bindings.IkeConcept;
 import org.eclipse.collections.api.factory.Lists;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -44,9 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NavigationOfUndefinedTest {
 
     /** The base concept whose definition the test retires: Gretel, a child of Author. */
-    private static final EntityProxy.Concept RETIRED = IkeTerms.GRETEL;
+    private static final EntityProxy.Concept RETIRED = IkeConcept.GRETEL;
     /** A base concept that keeps its definition, another child of Author: KOMET user. */
-    private static final EntityProxy.Concept KEPT = KernelTerm.KOMET_USER;
+    private static final EntityProxy.Concept KEPT = KernelConcept.KOMET_USER;
 
     /** The default view, resolved once the store is open: its coordinates carry nids. */
     private static ViewCoordinateRecord VIEW;
@@ -68,26 +69,26 @@ class NavigationOfUndefinedTest {
         // the base its own, as an import would before anything is retired.
         StatedNavigationDeriver.derive(VIEW);
         long retired = RETIRED.nid();
-        statedParentsBefore = parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid());
+        statedParentsBefore = parents(retired, KernelPattern.STATED_NAVIGATION_PATTERN.nid());
         retireDefinition(EntityService.get().semanticsForComponentOfPattern(retired,
-                KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().nid());
+                KernelPattern.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().nid());
         first = StatedNavigationDeriver.derive(VIEW);
 
         // The inferred navigation a reasoned file, or an earlier classification, leaves
         // behind for the concept: the reasoner will not touch it, having nothing to
         // classify.
-        long inferredPattern = KernelTerm.INFERRED_NAVIGATION_PATTERN.nid();
+        long inferredPattern = KernelPattern.INFERRED_NAVIGATION_PATTERN.nid();
         assertEquals(0, navigationSemantics(retired, inferredPattern).size(),
                 "the unreasoned base carries no inferred navigation for the concept");
         Transaction transaction = Transaction.make("Stale inferred navigation");
-        StampEntity<?> stamp = transaction.getStamp(State.ACTIVE, KernelTerm.USER.nid(),
-                KernelTerm.SOLOR_OVERLAY_MODULE.nid(), KernelTerm.DEVELOPMENT_PATH.nid());
+        StampEntity<?> stamp = transaction.getStamp(State.ACTIVE, KernelConcept.USER.nid(),
+                KernelConcept.SOLOR_OVERLAY_MODULE.nid(), KernelConcept.DEVELOPMENT_PATH.nid());
         SemanticRecord stale = StatedNavigationDeriver.mint(retired, PrimitiveData.publicId(inferredPattern),
                 inferredPattern, stamp.nid(),
-                Lists.immutable.of(LongIds.set.empty(), LongIds.set.of(KernelTerm.USER.nid())));
+                Lists.immutable.of(LongIds.set.empty(), LongIds.set.of(KernelConcept.USER.nid())));
         transaction.addComponent(stale);
         transaction.commit();
-        assertEquals(Set.of(KernelTerm.USER.nid()), parents(retired, inferredPattern), "stale parents in place");
+        assertEquals(Set.of(KernelConcept.USER.nid()), parents(retired, inferredPattern), "stale parents in place");
 
         inferredEmptied = StatedNavigationDeriver.emptyNavigationOfUndefined(VIEW, inferredPattern);
     }
@@ -101,9 +102,9 @@ class NavigationOfUndefinedTest {
     @DisplayName("A retired definition empties the concept's stated navigation")
     void retiredDefinitionEmptiesStatedNavigation() {
         long retired = RETIRED.nid();
-        assertEquals(Set.of(KernelTerm.USER.nid()), statedParentsBefore, "the base's derivation filed it under Author");
-        assertEquals(Set.of(), parents(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
-        assertEquals(Set.of(), children(retired, KernelTerm.STATED_NAVIGATION_PATTERN.nid()), "no children");
+        assertEquals(Set.of(KernelConcept.USER.nid()), statedParentsBefore, "the base's derivation filed it under Author");
+        assertEquals(Set.of(), parents(retired, KernelPattern.STATED_NAVIGATION_PATTERN.nid()), "no parents now");
+        assertEquals(Set.of(), children(retired, KernelPattern.STATED_NAVIGATION_PATTERN.nid()), "no children");
         assertTrue(first.semanticsEmptied() >= 1, "the derivation reports the emptied semantic");
         assertTrue(first.wroteAnything());
     }
@@ -111,7 +112,7 @@ class NavigationOfUndefinedTest {
     @Test
     @DisplayName("The former parent no longer lists the concept")
     void formerParentDropsIt() {
-        assertFalse(children(KernelTerm.USER.nid(), KernelTerm.STATED_NAVIGATION_PATTERN.nid())
+        assertFalse(children(KernelConcept.USER.nid(), KernelPattern.STATED_NAVIGATION_PATTERN.nid())
                 .contains(RETIRED.nid()), "Author's children drop it");
     }
 
@@ -120,16 +121,16 @@ class NavigationOfUndefinedTest {
     void inferredNavigationEmptiedAfterClassification() {
         assertEquals(1, inferredEmptied, "one stale inferred navigation semantic emptied");
         long retired = RETIRED.nid();
-        assertEquals(Set.of(), parents(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
-        assertEquals(Set.of(), children(retired, KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()));
+        assertEquals(Set.of(), parents(retired, KernelPattern.INFERRED_NAVIGATION_PATTERN.nid()));
+        assertEquals(Set.of(), children(retired, KernelPattern.INFERRED_NAVIGATION_PATTERN.nid()));
     }
 
     @Test
     @DisplayName("A concept that keeps its definition is untouched")
     void definedConceptUntouched() {
         long kept = KEPT.nid();
-        assertEquals(Set.of(KernelTerm.USER.nid()), parents(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()));
-        assertEquals(1, navigationVersions(kept, KernelTerm.STATED_NAVIGATION_PATTERN.nid()),
+        assertEquals(Set.of(KernelConcept.USER.nid()), parents(kept, KernelPattern.STATED_NAVIGATION_PATTERN.nid()));
+        assertEquals(1, navigationVersions(kept, KernelPattern.STATED_NAVIGATION_PATTERN.nid()),
                 "the one version the base's derivation wrote");
     }
 
@@ -137,7 +138,7 @@ class NavigationOfUndefinedTest {
     @DisplayName("A second sweep and a second derivation write nothing")
     void secondSweepWritesNothing() {
         assertEquals(0, StatedNavigationDeriver.emptyNavigationOfUndefined(VIEW,
-                KernelTerm.INFERRED_NAVIGATION_PATTERN.nid()), "nothing left to empty");
+                KernelPattern.INFERRED_NAVIGATION_PATTERN.nid()), "nothing left to empty");
         StatedNavigationDeriver.Summary second = StatedNavigationDeriver.derive(VIEW);
         assertEquals(0, second.semanticsEmptied(), "nothing left to empty in the stated pattern");
         assertEquals(0, second.semanticsUpdated());
@@ -151,8 +152,8 @@ class NavigationOfUndefinedTest {
         Latest<SemanticEntityVersion> latest = view.latest(axiomsNid);
         assertTrue(latest.isPresent() && latest.get().active(), "an active definition to retire");
         Transaction transaction = Transaction.make("Retire a base definition");
-        StampEntity<?> stamp = transaction.getStamp(State.INACTIVE, KernelTerm.USER.nid(),
-                KernelTerm.SOLOR_OVERLAY_MODULE.nid(), KernelTerm.DEVELOPMENT_PATH.nid());
+        StampEntity<?> stamp = transaction.getStamp(State.INACTIVE, KernelConcept.USER.nid(),
+                KernelConcept.SOLOR_OVERLAY_MODULE.nid(), KernelConcept.DEVELOPMENT_PATH.nid());
         SemanticRecord record = view.updateFields(axiomsNid, latest.get().fieldValues(), stamp.nid());
         transaction.addComponent(record);
         EntityService.get().putEntity(record);

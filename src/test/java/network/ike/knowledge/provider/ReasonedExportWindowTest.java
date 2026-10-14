@@ -1,6 +1,7 @@
 package network.ike.knowledge.provider;
 
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.KernelConcept;
+import network.ike.foundation.ike.bindings.IkeConcept;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.coordinate.Coordinates;
@@ -11,7 +12,6 @@ import dev.ikm.tinkar.entity.builder.ActiveStamp;
 import dev.ikm.tinkar.entity.builder.KnowledgeSet;
 import dev.ikm.tinkar.entity.builder.Stamp;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
-import network.ike.foundation.ike.bindings.IkeTerms;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -50,12 +50,12 @@ class ReasonedExportWindowTest {
             try {
                 new LoadEntitiesFromProtobufFile(
                         Path.of("target", "data", "ike-starter-set-unreasoned-pb.zip").toFile()).compute();
-                ActiveStamp preEpoch = Stamp.active(PRE_EPOCH_TIME, KernelTerm.USER,
-                        KernelTerm.SOLOR_OVERLAY_MODULE, KernelTerm.DEVELOPMENT_PATH);
+                ActiveStamp preEpoch = Stamp.active(PRE_EPOCH_TIME, KernelConcept.USER,
+                        KernelConcept.SOLOR_OVERLAY_MODULE, KernelConcept.DEVELOPMENT_PATH);
                 KnowledgeSet ledger = KnowledgeSet.of("5d3f2b1a-7c9e-5a4b-8d6f-1e2c3b4a5d6e");
                 ledger.concept("Before the epoch (Test)").at(preEpoch)
                         .synonym("Before the epoch")
-                        .isA(IkeTerms.MODEL_CONCEPT);
+                        .isA(IkeConcept.MODEL_CONCEPT);
                 ledger.write();
                 StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
                 assertTrue(preEpochOnlySemantics() > 0,

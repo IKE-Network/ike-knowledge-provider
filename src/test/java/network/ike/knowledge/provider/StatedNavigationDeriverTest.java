@@ -1,10 +1,11 @@
 package network.ike.knowledge.provider;
 
-import network.ike.foundation.ike.bindings.IkeTerms;
-import dev.ikm.tinkar.terms.KernelTerm;
+import network.ike.foundation.ike.bindings.IkeConcept;
+import dev.ikm.tinkar.terms.KernelConcept;
+import dev.ikm.tinkar.terms.KernelPattern;
 import dev.ikm.tinkar.common.id.LongIdSet;
 import dev.ikm.tinkar.common.id.PublicId;
-import dev.ikm.tinkar.terms.EntityProxy;
+import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.coordinate.Coordinates;
@@ -42,9 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StatedNavigationDeriverTest {
 
     /** The base concept the ledger re-parents: Gretel, a child of Author. */
-    private static final EntityProxy.Concept REPARENTED = IkeTerms.GRETEL;
+    private static final EntityProxy.Concept REPARENTED = IkeConcept.GRETEL;
     /** A base concept the ledger never touches, another leaf under Author: KOMET user. */
-    private static final EntityProxy.Concept UNTOUCHED = KernelTerm.KOMET_USER;
+    private static final EntityProxy.Concept UNTOUCHED = KernelConcept.KOMET_USER;
     /** After the IKE starter set's own authoring time (1767225600777), so the ledger's versions are latest. */
     private static final long AUTHORING_TIME = 1767312000000L;
 
@@ -62,20 +63,20 @@ class StatedNavigationDeriverTest {
 
         StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
         PublicId reparentedAxioms = EntityService.get().semanticsForComponentOfPattern(REPARENTED.nid(),
-                KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().publicId();
+                KernelPattern.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid()).findFirst().orElseThrow().publicId();
 
-        ActiveStamp stamp = Stamp.active(AUTHORING_TIME, KernelTerm.USER,
-                KernelTerm.SOLOR_OVERLAY_MODULE, KernelTerm.DEVELOPMENT_PATH);
+        ActiveStamp stamp = Stamp.active(AUTHORING_TIME, KernelConcept.USER,
+                KernelConcept.SOLOR_OVERLAY_MODULE, KernelConcept.DEVELOPMENT_PATH);
         ledger = KnowledgeSet.of("0a5c7d0e-3b7a-5e8f-9c1d-2f4e6a8b0c1d");
         ledger.concept("Alpha (Test)").at(stamp)
                 .synonym("Alpha")
-                .isA(IkeTerms.MODEL_CONCEPT);
+                .isA(IkeConcept.MODEL_CONCEPT);
         ledger.concept("Beta (Test)").at(stamp)
                 .synonym("Beta")
                 .isA(ledger.conceptRef("Alpha (Test)"));
         ledger.concept("Gretel (User)", REPARENTED.publicId()).at(stamp)
                 .statedAxioms(reparentedAxioms,
-                        leb -> leb.NecessarySet(leb.And(leb.ConceptAxiom(IkeTerms.MODEL_CONCEPT))));
+                        leb -> leb.NecessarySet(leb.And(leb.ConceptAxiom(IkeConcept.MODEL_CONCEPT))));
         ledger.write();
 
         untouchedVersionsBefore = navigationVersions(UNTOUCHED.nid());
@@ -92,11 +93,11 @@ class StatedNavigationDeriverTest {
     void newConceptsGetNavigation() {
         long alpha = ledger.conceptRef("Alpha (Test)").nid();
         long beta = ledger.conceptRef("Beta (Test)").nid();
-        assertEquals(Set.of(IkeTerms.MODEL_CONCEPT.nid()), parents(alpha), "Alpha's parents");
+        assertEquals(Set.of(IkeConcept.MODEL_CONCEPT.nid()), parents(alpha), "Alpha's parents");
         assertEquals(Set.of(beta), children(alpha), "Alpha's children");
         assertEquals(Set.of(alpha), parents(beta), "Beta's parents");
         assertEquals(Set.of(), children(beta), "Beta's children");
-        assertTrue(children(IkeTerms.MODEL_CONCEPT.nid()).contains(alpha),
+        assertTrue(children(IkeConcept.MODEL_CONCEPT.nid()).contains(alpha),
                 "Model concept's children gain Alpha");
         assertTrue(first.semanticsCreated() >= 2, "Alpha and Beta were minted navigation");
     }
@@ -105,10 +106,10 @@ class StatedNavigationDeriverTest {
     @DisplayName("A re-parented base concept leaves its old parent's children and joins the new one's")
     void reparentedConceptMoves() {
         long reparented = REPARENTED.nid();
-        assertEquals(Set.of(IkeTerms.MODEL_CONCEPT.nid()), parents(reparented), "the new parent");
-        assertFalse(children(KernelTerm.USER.nid()).contains(reparented),
+        assertEquals(Set.of(IkeConcept.MODEL_CONCEPT.nid()), parents(reparented), "the new parent");
+        assertFalse(children(KernelConcept.USER.nid()).contains(reparented),
                 "Author no longer lists it, so a login dialog reading stated navigation no longer offers it");
-        assertTrue(children(IkeTerms.MODEL_CONCEPT.nid()).contains(reparented), "Model concept lists it");
+        assertTrue(children(IkeConcept.MODEL_CONCEPT.nid()).contains(reparented), "Model concept lists it");
     }
 
     @Test
@@ -117,27 +118,27 @@ class StatedNavigationDeriverTest {
         assertEquals(1, untouchedVersionsBefore, "KOMET user's stated navigation came with the base's derivation");
         assertEquals(untouchedVersionsBefore, navigationVersions(UNTOUCHED.nid()),
                 "KOMET user's stated navigation gained no version");
-        assertEquals(Set.of(KernelTerm.USER.nid()), parents(UNTOUCHED.nid()), "and still names Author");
+        assertEquals(Set.of(KernelConcept.USER.nid()), parents(UNTOUCHED.nid()), "and still names Author");
     }
 
     @Test
     @DisplayName("A second derivation over the same store writes nothing")
     void secondDerivationWritesNothing() {
         int alphaVersions = navigationVersions(ledger.conceptRef("Alpha (Test)").nid());
-        int userVersions = navigationVersions(KernelTerm.USER.nid());
+        int userVersions = navigationVersions(KernelConcept.USER.nid());
         StatedNavigationDeriver.Summary second = StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
         assertEquals(0, second.semanticsUpdated(), "nothing to update");
         assertEquals(0, second.semanticsCreated(), "nothing to create");
         assertEquals(first.conceptsConsidered(), second.conceptsConsidered(), "the same concepts considered");
         assertEquals(alphaVersions, navigationVersions(ledger.conceptRef("Alpha (Test)").nid()));
-        assertEquals(userVersions, navigationVersions(KernelTerm.USER.nid()));
+        assertEquals(userVersions, navigationVersions(KernelConcept.USER.nid()));
     }
 
     @Test
     @DisplayName("The root's self-reference is not a parent")
     void rootNamesNoParent() {
-        assertEquals(Set.of(), parents(KernelTerm.ROOT_VERTEX.nid()), "the root has no parents");
-        assertFalse(children(KernelTerm.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
+        assertEquals(Set.of(), parents(KernelConcept.ROOT_VERTEX.nid()), "the root has no parents");
+        assertFalse(children(KernelConcept.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
     }
 
     private static Set<Long> parents(long conceptNid) {
@@ -172,6 +173,6 @@ class StatedNavigationDeriverTest {
 
     private static List<SemanticEntity<SemanticEntityVersion>> navigationSemantics(long conceptNid) {
         return EntityService.get().semanticsForComponentOfPattern(conceptNid,
-                KernelTerm.STATED_NAVIGATION_PATTERN.nid()).toList();
+                KernelPattern.STATED_NAVIGATION_PATTERN.nid()).toList();
     }
 }

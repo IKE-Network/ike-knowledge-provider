@@ -1,6 +1,6 @@
 package network.ike.knowledge.provider;
 
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.KernelPattern;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PluggableService;
@@ -153,7 +153,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     // definition is retired keeps the inferred parents it had
                     // (IKE-Network/ike-issues#1131).
                     StatedNavigationDeriver.emptyNavigationOfUndefined(Coordinates.View.DefaultView(),
-                            KernelTerm.INFERRED_NAVIGATION_PATTERN.nid());
+                            KernelPattern.INFERRED_NAVIGATION_PATTERN.nid());
                 }
 
                 // The extension's koncepts, read from the whole classified store, so a concept
@@ -335,8 +335,8 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         };
         try {
             reasoner.init(Calculators.View.Default(),
-                    KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
-                    KernelTerm.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
+                    KernelPattern.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
+                    KernelPattern.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
             reasoner.extractData(progress);
             reasoner.loadData(progress);
             reasoner.computeInferences(progress);

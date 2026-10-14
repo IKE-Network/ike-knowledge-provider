@@ -3,7 +3,7 @@ package network.ike.knowledge.provider;
 import dev.ikm.tinkar.schema.StampChronology;
 import dev.ikm.tinkar.schema.StampVersion;
 import dev.ikm.tinkar.schema.TinkarMsg;
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.KernelConcept;
 import network.ike.knowledge.spi.ArtifactInput;
 import network.ike.knowledge.spi.AssembleRequest;
 import network.ike.knowledge.spi.ViewSpec;
@@ -46,7 +46,7 @@ class ReasonedExportCommittedStampsTest {
                     ViewSpec.empty(), true, Optional.empty(), Optional.empty(), Optional.of(export)));
 
             List<StampChronology> stamps = stampChronologies(export);
-            List<String> classifier = KernelTerm.SNOROCKET_CLASSIFIER.asUuidList().stream()
+            List<String> classifier = KernelConcept.SNOROCKET_CLASSIFIER.asUuidList().stream()
                     .map(UUID::toString).toList();
             assertTrue(stamps.stream().anyMatch(stamp -> classifier.containsAll(
                             stamp.getFirstStampVersion().getAuthorPublicId().getUuidsList())),

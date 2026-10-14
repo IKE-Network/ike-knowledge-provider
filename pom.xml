@@ -307,7 +307,7 @@
         <profile>
             <id>starter-set</id>
             <dependencies>
-                <!-- The starter set's bindings (IkeTerms) for the components the tests name beyond the kernel. -->
+                <!-- The starter set's bindings (IkeConcept, IkePattern) for the components the tests name beyond the kernel. -->
                 <dependency>
                     <groupId>network.ike.foundation</groupId>
                     <artifactId>ike-bindings</artifactId>

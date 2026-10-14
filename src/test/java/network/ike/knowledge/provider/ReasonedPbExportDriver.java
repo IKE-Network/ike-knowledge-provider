@@ -1,6 +1,6 @@
 package network.ike.knowledge.provider;
 
-import dev.ikm.tinkar.terms.KernelTerm;
+import dev.ikm.tinkar.terms.KernelPattern;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PluggableService;
@@ -210,8 +210,8 @@ final class ReasonedPbExportDriver {
         };
         try {
             reasoner.init(Calculators.View.Default(),
-                    KernelTerm.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
-                    KernelTerm.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
+                    KernelPattern.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN,
+                    KernelPattern.EL_PLUS_PLUS_INFERRED_AXIOMS_PATTERN);
             reasoner.extractData(progress);
             reasoner.loadData(progress);
             reasoner.computeInferences(progress);
