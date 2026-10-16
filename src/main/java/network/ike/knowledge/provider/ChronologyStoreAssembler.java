@@ -46,7 +46,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Assembles a knowledge base in a Spined Array store — the chronology-store
+ * Assembles a knowledge base in a Spined Array store (or the controller
+ * {@value #STORE_CONTROLLER_PROPERTY} names) — the chronology-store
  * {@link KnowledgeBaseAssembler}: an optional store-seed layer, ordered entity loads
  * inside the bulk-load bracket and source releases written by their knowledge importers, the stated navigation derived from the loaded stated
  * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
@@ -64,6 +65,14 @@ import java.util.zip.ZipInputStream;
 public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     private static final String DEFAULT_REASONER = "ElkSnomedReasonerService";
+
+    /**
+     * The system property naming the store controller to assemble in; the Spined Array store
+     * when it is unset. For measuring one store against another (IKE-Network/ike-issues#1301).
+     */
+    public static final String STORE_CONTROLLER_PROPERTY = "ike.knowledge.storeController";
+
+    private static final String DEFAULT_STORE_CONTROLLER = "Open SpinedArrayStore";
 
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
@@ -94,7 +103,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-            PrimitiveData.selectControllerByName("Open SpinedArrayStore");
+            PrimitiveData.selectControllerByName(System.getProperty(STORE_CONTROLLER_PROPERTY, DEFAULT_STORE_CONTROLLER));
             PrimitiveData.start();
             try {
                 // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
