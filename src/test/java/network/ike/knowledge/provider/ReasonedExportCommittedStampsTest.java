@@ -11,15 +11,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -46,7 +43,7 @@ class ReasonedExportCommittedStampsTest {
                     ViewSpec.empty(), true, Optional.empty(), Optional.empty(), Optional.of(export)));
 
             List<StampChronology> stamps = stampChronologies(export);
-            List<String> classifier = KernelConcept.SNOROCKET_CLASSIFIER.asUuidList().stream()
+            List<String> classifier = KernelConcept.SNOROCKET_CLASSIFIER.publicId().asUuidList().stream()
                     .map(UUID::toString).toList();
             assertTrue(stamps.stream().anyMatch(stamp -> classifier.containsAll(
                             stamp.getFirstStampVersion().getAuthorPublicId().getUuidsList())),
@@ -74,22 +71,10 @@ class ReasonedExportCommittedStampsTest {
     }
 
     private static List<StampChronology> stampChronologies(Path export) throws IOException {
-        List<StampChronology> stamps = new ArrayList<>();
-        try (ZipFile zip = new ZipFile(export.toFile())) {
-            ZipEntry data = zip.stream()
-                    .filter(entry -> !entry.getName().startsWith("META-INF/"))
-                    .findFirst()
-                    .orElseThrow();
-            try (InputStream in = zip.getInputStream(data)) {
-                TinkarMsg message = TinkarMsg.parseDelimitedFrom(in);
-                while (message != null) {
-                    if (message.hasStampChronology()) {
-                        stamps.add(message.getStampChronology());
-                    }
-                    message = TinkarMsg.parseDelimitedFrom(in);
-                }
-            }
-        }
+        List<StampChronology> stamps = ExportRecords.read(export).stream()
+                .filter(TinkarMsg::hasStampChronology)
+                .map(TinkarMsg::getStampChronology)
+                .toList();
         assertFalse(stamps.isEmpty(), "the export carries stamps");
         return stamps;
     }

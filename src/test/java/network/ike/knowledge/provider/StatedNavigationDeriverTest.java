@@ -43,9 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class StatedNavigationDeriverTest {
 
     /** The base concept the ledger re-parents: Gretel, a child of Author. */
-    private static final EntityProxy.Concept REPARENTED = IkeConcept.GRETEL;
+    private static final ConceptFacade REPARENTED = IkeConcept.GRETEL;
     /** A base concept the ledger never touches, another leaf under Author: KOMET user. */
-    private static final EntityProxy.Concept UNTOUCHED = KernelConcept.KOMET_USER;
+    private static final ConceptFacade UNTOUCHED = KernelConcept.KOMET_USER;
     /** After the IKE starter set's own authoring time (1767225600777), so the ledger's versions are latest. */
     private static final long AUTHORING_TIME = 1767312000000L;
 

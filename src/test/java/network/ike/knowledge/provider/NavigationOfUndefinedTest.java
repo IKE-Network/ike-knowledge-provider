@@ -45,9 +45,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NavigationOfUndefinedTest {
 
     /** The base concept whose definition the test retires: Gretel, a child of Author. */
-    private static final EntityProxy.Concept RETIRED = IkeConcept.GRETEL;
+    private static final ConceptFacade RETIRED = IkeConcept.GRETEL;
     /** A base concept that keeps its definition, another child of Author: KOMET user. */
-    private static final EntityProxy.Concept KEPT = KernelConcept.KOMET_USER;
+    private static final ConceptFacade KEPT = KernelConcept.KOMET_USER;
 
     /** The default view, resolved once the store is open: its coordinates carry nids. */
     private static ViewCoordinateRecord VIEW;

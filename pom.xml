@@ -98,7 +98,7 @@
         <!-- ike-knowledge-spi 263 ships the change set services (ChangeSetInspector, Verifier,
              Expander, Compactor; IKE-Network/ike-issues#1275) beside the #951 verification contract;
              266 adds the SOURCE input, a release a knowledge importer writes into the store. -->
-        <ike-knowledge-spi.version>266-SNAPSHOT</ike-knowledge-spi.version>
+        <ike-knowledge-spi.version>267-SNAPSHOT</ike-knowledge-spi.version>
         <!-- The IKE starter set every test of this module reads (IKE-Network/ike-issues#1123):
              its unreasoned export and its bindings, from starter-data-ws, which is built with
              this provider. Both live under the starter-set profile, off by default, so the

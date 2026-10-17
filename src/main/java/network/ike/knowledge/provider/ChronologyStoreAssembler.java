@@ -111,15 +111,26 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 boolean searchIndexStale = false;
                 // The stamps the source imports create: what a source delta export carries.
                 java.util.Set<Long> sourceStamps = new java.util.HashSet<>();
+                // The source release semantics, in the order they arrived (IKE-Network/ike-issues#1304).
+                List<Long> releases = KnowledgeBaseComposition.arrivals(List.of(),
+                        KnowledgeBaseComposition.sourceReleases());
                 while (i < inputs.size()) {
                     if (inputs.get(i).role() == ArtifactInput.Role.SOURCE) {
-                        java.util.Set<Long> before = request.sourceDeltaFile().isPresent() ? stampNids() : java.util.Set.of();
-                        loads.add(importSource(inputs.get(i)));
-                        if (request.sourceDeltaFile().isPresent()) {
-                            java.util.Set<Long> after = stampNids();
-                            after.removeAll(before);
-                            sourceStamps.addAll(after);
-                        }
+                        ArtifactInput input = inputs.get(i);
+                        java.util.Set<Long> before = stampNids();
+                        java.util.Set<Long> base = KnowledgeBaseComposition.sourceReleases();
+                        ImportedSource imported = importSource(input);
+                        java.util.Set<Long> created = stampNids();
+                        created.removeAll(before);
+                        Optional<Long> recorded = KnowledgeBaseComposition.writeSourceRelease(input,
+                                imported.report(), imported.importer(), created,
+                                dev.ikm.tinkar.common.id.LongIds.set.of(base.stream().mapToLong(Long::longValue).toArray()));
+                        recorded.ifPresent(created::add);
+                        loads.add(recorded.isPresent() ? imported.summary() : new LoadSummary(
+                                imported.summary().artifact() + "; " + KnowledgeBaseComposition.NOT_RECORDED,
+                                imported.summary().counts()));
+                        sourceStamps.addAll(created);
+                        releases = KnowledgeBaseComposition.arrivals(releases, KnowledgeBaseComposition.sourceReleases());
                         // Past the live-index threshold the load phase stops indexing; the next
                         // bracket resets the policy, so the need is remembered here.
                         searchIndexStale |= EntityService.get().loadPhaseSearchPolicy().recreateRequired();
@@ -139,6 +150,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     } finally {
                         EntityService.get().endLoadPhase();
                     }
+                    releases = KnowledgeBaseComposition.arrivals(releases, KnowledgeBaseComposition.sourceReleases());
                 }
                 if (searchIndexStale) {
                     recreateSearchIndex();
@@ -170,6 +182,11 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 if (request.konceptsYmlFile().isPresent()) {
                     writeExtensionKoncepts(request.konceptsYmlFile().get(), request.konceptsModules());
                 }
+
+                // What the knowledge base is made of, recorded in it before it is exported.
+                KnowledgeBaseComposition.writeComposition(inputs,
+                        dev.ikm.tinkar.common.id.LongIds.list.of(releases.stream().mapToLong(Long::longValue).toArray()),
+                        classification.map(ClassificationSummary::service));
 
                 // The reasoned-pb export must see the classified store while it is
                 // still open: full standalone export, inferred semantics included
@@ -279,23 +296,29 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
      * An importer counts what it wrote, not entities by kind, so the summary names the
      * release, the importer and its counts, and carries no entity counts.
      */
-    private static LoadSummary importSource(ArtifactInput input) {
+    private static ImportedSource importSource(ArtifactInput input) {
         String importerName = input.importer().orElseThrow();
+        dev.ikm.tinkar.importer.KnowledgeImporter importer = KnowledgeImporters.named(importerName);
         // Inside the bulk-load bracket, as a load: outside it every write is indexed and the
         // searcher refreshed, one write at a time, which a release of millions of rows cannot
         // afford. The bracket is not nested; an importer that loads a file midway re-enters it.
         ImportReport report;
         EntityService.get().beginLoadPhase();
         try {
-            report = KnowledgeImporters.named(importerName).importInto(
+            report = importer.importInto(
                     new ImportSource(input.path(), input.options()),
                     new StoreWriter(Calculators.Stamp.DevelopmentLatest()));
         } finally {
             EntityService.get().endLoadPhase();
         }
-        return new LoadSummary(report.sourceVersion() + " via " + importerName + " (written " + report.written()
-                + ", versioned " + report.versioned() + ", unchanged " + report.unchanged() + ", in "
-                + report.elapsed() + ")", new EntityCounts(0, 0, 0, 0));
+        return new ImportedSource(new LoadSummary(report.sourceVersion() + " via " + importerName + " (written "
+                + report.written() + ", versioned " + report.versioned() + ", unchanged " + report.unchanged()
+                + ", in " + report.elapsed() + ")", new EntityCounts(0, 0, 0, 0)), report, importer);
+    }
+
+    /** A source import: its load summary, its importer's report, and the importer that ran. */
+    private record ImportedSource(LoadSummary summary, ImportReport report,
+                                 dev.ikm.tinkar.importer.KnowledgeImporter importer) {
     }
 
     /**
