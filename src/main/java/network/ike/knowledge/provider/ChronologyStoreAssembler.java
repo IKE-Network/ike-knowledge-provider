@@ -20,6 +20,7 @@ import dev.ikm.tinkar.importer.ImportReport;
 import dev.ikm.tinkar.importer.ImportSource;
 import dev.ikm.tinkar.importer.KnowledgeImporters;
 import dev.ikm.tinkar.importer.StoreWriter;
+import dev.ikm.tinkar.importer.registry.Registry;
 import dev.ikm.tinkar.reasoner.service.ClassifierResults;
 import dev.ikm.tinkar.reasoner.service.ReasonerService;
 import network.ike.knowledge.spi.ArtifactInput;
@@ -109,28 +110,32 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
                 int i = firstLoad;
                 boolean searchIndexStale = false;
-                // The stamps the source imports create: what a source delta export carries.
+                // The stamps the source imports wrote under, new or not: what a source delta export carries.
                 java.util.Set<Long> sourceStamps = new java.util.HashSet<>();
-                // The source release semantics, in the order they arrived (IKE-Network/ike-issues#1304).
-                List<Long> releases = KnowledgeBaseComposition.arrivals(List.of(),
-                        KnowledgeBaseComposition.sourceReleases());
+                // The release registrations, in the order they arrived (IKE-Network/ike-issues#1304).
+                List<Long> releases = arrivals(List.of(), Registry.releaseRegistrations());
+                // Each input's checksum, by path: a source's is taken for its registration, and reused.
+                java.util.Map<Path, String> checksums = new java.util.HashMap<>();
                 while (i < inputs.size()) {
                     if (inputs.get(i).role() == ArtifactInput.Role.SOURCE) {
                         ArtifactInput input = inputs.get(i);
                         java.util.Set<Long> before = stampNids();
-                        java.util.Set<Long> base = KnowledgeBaseComposition.sourceReleases();
+                        java.util.Set<Long> base = Registry.releaseRegistrations();
                         ImportedSource imported = importSource(input);
+                        // What the writer wrote under, and anything the importer wrote around it.
+                        java.util.Set<Long> written = new java.util.HashSet<>(imported.stampsWritten());
                         java.util.Set<Long> created = stampNids();
                         created.removeAll(before);
-                        Optional<Long> recorded = KnowledgeBaseComposition.writeSourceRelease(input,
-                                imported.report(), imported.importer(), created,
-                                dev.ikm.tinkar.common.id.LongIds.set.of(base.stream().mapToLong(Long::longValue).toArray()));
-                        recorded.ifPresent(created::add);
-                        loads.add(recorded.isPresent() ? imported.summary() : new LoadSummary(
-                                imported.summary().artifact() + "; " + KnowledgeBaseComposition.NOT_RECORDED,
-                                imported.summary().counts()));
-                        sourceStamps.addAll(created);
-                        releases = KnowledgeBaseComposition.arrivals(releases, KnowledgeBaseComposition.sourceReleases());
+                        written.addAll(created);
+                        Optional<Long> registered = Registry.registerRelease(
+                                new Registry.Release(artifact(input), input.resolvedVersion(),
+                                        checksums.computeIfAbsent(input.path(), Registry::checksum)),
+                                imported.importer(), input.options(), imported.report(), written, base);
+                        registered.ifPresent(written::add);
+                        loads.add(registered.isPresent() ? imported.summary() : new LoadSummary(
+                                imported.summary().artifact() + "; " + NOT_REGISTERED, imported.summary().counts()));
+                        sourceStamps.addAll(written);
+                        releases = arrivals(releases, Registry.releaseRegistrations());
                         // Past the live-index threshold the load phase stops indexing; the next
                         // bracket resets the policy, so the need is remembered here.
                         searchIndexStale |= EntityService.get().loadPhaseSearchPolicy().recreateRequired();
@@ -150,7 +155,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     } finally {
                         EntityService.get().endLoadPhase();
                     }
-                    releases = KnowledgeBaseComposition.arrivals(releases, KnowledgeBaseComposition.sourceReleases());
+                    releases = arrivals(releases, Registry.releaseRegistrations());
                 }
                 if (searchIndexStale) {
                     recreateSearchIndex();
@@ -158,7 +163,11 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
                 // One source's artifact: what its import wrote, before anything is derived from it.
                 if (request.sourceDeltaFile().isPresent()) {
-                    exportSourceDelta(request.sourceDeltaFile().get(), sourceStamps);
+                    Path delta = request.sourceDeltaFile().get();
+                    EntityCountSummary exported = exportSourceDelta(delta, sourceStamps);
+                    Registry.registerExport(delta, "source delta: the versions under the "
+                            + sourceStamps.size() + " stamps the source imports wrote under, unclassified",
+                            exported.getTotalCount(), java.time.Instant.now());
                 }
 
                 // The loaded files carry stated navigation as it stood when they were
@@ -183,17 +192,27 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                     writeExtensionKoncepts(request.konceptsYmlFile().get(), request.konceptsModules());
                 }
 
-                // What the knowledge base is made of, recorded in it before it is exported.
-                KnowledgeBaseComposition.writeComposition(inputs,
-                        dev.ikm.tinkar.common.id.LongIds.list.of(releases.stream().mapToLong(Long::longValue).toArray()),
-                        classification.map(ClassificationSummary::service));
+                // What the knowledge base is made of, registered in it before it is exported.
+                Registry.registerAssembly(inputs.stream()
+                                .map(input -> new Registry.AssemblyInput(input.role().name(), artifact(input),
+                                        input.resolvedVersion(),
+                                        checksums.computeIfAbsent(input.path(), Registry::checksum)))
+                                .toList(),
+                        releases, classification.map(ClassificationSummary::service), java.time.Instant.now());
 
                 // The reasoned-pb export must see the classified store while it is
                 // still open: full standalone export, inferred semantics included
-                // (IKE-Network/ike-issues#933).
-                reasonedPb = request.reasonedPbFile().isPresent()
-                        ? Optional.of(exportReasonedPb(request.reasonedPbFile().get()))
-                        : Optional.empty();
+                // (IKE-Network/ike-issues#933). Registered after it is written, so the
+                // store remembers it; the file itself cannot hold its own checksum.
+                if (request.reasonedPbFile().isPresent()) {
+                    Path file = request.reasonedPbFile().get();
+                    EntityCountSummary exported = exportReasonedPb(file);
+                    Registry.registerExport(file, "reasoned: every component, all time, inferred semantics included",
+                            exported.getTotalCount(), java.time.Instant.now());
+                    reasonedPb = Optional.of(file);
+                } else {
+                    reasonedPb = Optional.empty();
+                }
             } finally {
                 PrimitiveData.stop();
             }
@@ -237,14 +256,15 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     /**
      * Exports what the source imports wrote, and only that: every version under a stamp they
-     * created, unclassified; references to the inputs before them travel by public id.
+     * wrote under, new or not, unclassified; references to the inputs before them travel by
+     * public id.
      */
-    private static void exportSourceDelta(Path file, java.util.Set<Long> sourceStamps) throws IOException {
+    private static EntityCountSummary exportSourceDelta(Path file, java.util.Set<Long> sourceStamps) throws IOException {
         Path parent = file.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        new ExportEntitiesToProtobufFile(file.toFile(),
+        return new ExportEntitiesToProtobufFile(file.toFile(),
                 new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE), sourceStamps::contains).compute();
     }
 
@@ -303,22 +323,46 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
         // searcher refreshed, one write at a time, which a release of millions of rows cannot
         // afford. The bracket is not nested; an importer that loads a file midway re-enters it.
         ImportReport report;
+        StoreWriter writer = new StoreWriter(Calculators.Stamp.DevelopmentLatest());
         EntityService.get().beginLoadPhase();
         try {
-            report = importer.importInto(
-                    new ImportSource(input.path(), input.options()),
-                    new StoreWriter(Calculators.Stamp.DevelopmentLatest()));
+            report = importer.importInto(new ImportSource(input.path(), input.options()), writer);
         } finally {
             EntityService.get().endLoadPhase();
         }
         return new ImportedSource(new LoadSummary(report.sourceVersion() + " via " + importerName + " (written "
                 + report.written() + ", versioned " + report.versioned() + ", unchanged " + report.unchanged()
-                + ", in " + report.elapsed() + ")", new EntityCounts(0, 0, 0, 0)), report, importer);
+                + ", in " + report.elapsed() + ")", new EntityCounts(0, 0, 0, 0)), report, importer,
+                writer.stampsWritten());
     }
 
-    /** A source import: its load summary, its importer's report, and the importer that ran. */
+    /**
+     * A source import: its load summary, its importer's report, the importer that ran, and the
+     * stamps its writer wrote under.
+     */
     private record ImportedSource(LoadSummary summary, ImportReport report,
-                                 dev.ikm.tinkar.importer.KnowledgeImporter importer) {
+                                 dev.ikm.tinkar.importer.KnowledgeImporter importer, java.util.Set<Long> stampsWritten) {
+    }
+
+    /** The note a source's load summary carries when the store does not declare the registry. */
+    static final String NOT_REGISTERED = "not registered: the starter set does not declare the registry";
+
+    /** The input as it was named: its Maven coordinate as written, otherwise its file name. */
+    static String artifact(ArtifactInput input) {
+        return input.coordinate().orElseGet(() -> String.valueOf(input.path().getFileName()));
+    }
+
+    /**
+     * The nids a list holds, in order, followed by those of a set it does not, in nid order.
+     *
+     * @param arrived the nids so far, in arrival order
+     * @param now     the nids the store holds now
+     * @return the extended arrival order
+     */
+    static List<Long> arrivals(List<Long> arrived, java.util.Set<Long> now) {
+        List<Long> order = new ArrayList<>(arrived);
+        now.stream().filter(nid -> !arrived.contains(nid)).sorted().forEach(order::add);
+        return order;
     }
 
     /**
@@ -331,17 +375,16 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
      * (IKE-Network/ike-issues#1123).
      *
      * @param file the export file to write
-     * @return the written file
+     * @return what was written
      * @throws IOException if the parent directory cannot be created
      */
-    static Path exportReasonedPb(Path file) throws IOException {
+    static EntityCountSummary exportReasonedPb(Path file) throws IOException {
         Path parent = file.toAbsolutePath().getParent();
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        new ExportEntitiesToProtobufFile(file.toFile(),
+        return new ExportEntitiesToProtobufFile(file.toFile(),
                 new TemporalEntityAggregator(Long.MIN_VALUE, Long.MAX_VALUE)).compute();
-        return file;
     }
 
     /**
