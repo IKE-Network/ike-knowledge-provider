@@ -74,7 +74,7 @@ public final class TinkarChangeSetMerger implements ChangeSetMerger {
             Path storeRoot = Files.createTempDirectory("ike-changeset-merge");
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-            PrimitiveData.selectControllerByName("Load Ephemeral Store");
+            PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
             PrimitiveData.start();
             try {
                 for (Path changeSet : changeSets) {
@@ -86,7 +86,12 @@ public final class TinkarChangeSetMerger implements ChangeSetMerger {
                 if (!request.modules().isEmpty()) {
                     java.util.Set<Long> moduleNids = new java.util.HashSet<>();
                     for (String uuid : request.modules()) {
-                        moduleNids.add(PrimitiveData.nid(dev.ikm.tinkar.common.id.PublicIds.of(java.util.UUID.fromString(uuid))));
+                        // A module none of the change sets holds stamps nothing, so it keeps nothing;
+                        // looking it up must not mint it, which a store keyed by pattern refuses.
+                        dev.ikm.tinkar.common.id.PublicId module = dev.ikm.tinkar.common.id.PublicIds.of(java.util.UUID.fromString(uuid));
+                        if (PrimitiveData.get().hasPublicId(module)) {
+                            moduleNids.add(PrimitiveData.nid(module));
+                        }
                     }
                     keep = stampNid -> dev.ikm.tinkar.entity.EntityService.get().getStamp(stampNid)
                             .map(stamp -> moduleNids.contains(stamp.moduleNid())).orElse(false);

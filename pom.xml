@@ -200,6 +200,13 @@
             <version>${chronology-store.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- The memory-only store the merge, the export and the tests run on (IKE-Network/ike-issues#1313). -->
+        <dependency>
+            <groupId>dev.ikm.tinkar</groupId>
+            <artifactId>data-spinedarray64-provider</artifactId>
+            <version>${chronology-store.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>dev.ikm.tinkar</groupId>
             <artifactId>search-provider</artifactId>

@@ -65,7 +65,7 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
 
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-            PrimitiveData.selectControllerByName("Load Ephemeral Store");
+            PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
             PrimitiveData.start();
             try {
                 KnowledgeSet knowledgeSet = selectSource(request.sourceClass()).compose();
@@ -81,7 +81,7 @@ public final class ChronologyStoreExporter implements KnowledgeExporter {
                 if (konceptsYml.isPresent()) {
                     Files.createDirectories(konceptsYml.get().toAbsolutePath().getParent());
                     long narrativePatternNid = EntityService.get()
-                            .nidForPublicId(PublicIds.of(NARRATIVE_PATTERN_UUID));
+                            .nidForPattern(PublicIds.of(NARRATIVE_PATTERN_UUID));
                     Files.writeString(konceptsYml.get(), KonceptExtractor.extractYaml(narrativePatternNid));
                 }
 

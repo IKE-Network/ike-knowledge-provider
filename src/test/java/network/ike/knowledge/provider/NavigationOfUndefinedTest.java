@@ -59,7 +59,7 @@ class NavigationOfUndefinedTest {
     @BeforeAll
     static void loadRetireAndSweep() {
         CachingService.clearAll();
-        PrimitiveData.selectControllerByName("Load Ephemeral Store");
+        PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
         PrimitiveData.start();
         new LoadEntitiesFromProtobufFile(
                 Path.of("target", "data", "ike-starter-set-unreasoned-pb.zip").toFile()).compute();

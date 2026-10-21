@@ -44,7 +44,7 @@ class ReasonedExportWindowTest {
         Path export = Files.createTempFile("reasoned-export-window", ".zip");
         try {
             CachingService.clearAll();
-            PrimitiveData.selectControllerByName("Load Ephemeral Store");
+            PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
             PrimitiveData.start();
             int semanticsInStore;
             try {

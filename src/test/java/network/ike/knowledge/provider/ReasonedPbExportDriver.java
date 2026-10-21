@@ -103,7 +103,7 @@ final class ReasonedPbExportDriver {
         Path storeRoot = Files.createTempDirectory("ike-roundtrip");
         CachingService.clearAll();
         ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-        PrimitiveData.selectControllerByName("Load Ephemeral Store");
+        PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
         PrimitiveData.start();
         try {
             EntityCountSummary loaded = new LoadEntitiesFromProtobufFile(pb).compute();
@@ -138,7 +138,7 @@ final class ReasonedPbExportDriver {
         Path storeRoot = Files.createTempDirectory("ike-dangling");
         CachingService.clearAll();
         ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-        PrimitiveData.selectControllerByName("Load Ephemeral Store");
+        PrimitiveData.selectControllerByName("Load Memory-Only 64-bit Store");
         PrimitiveData.start();
         try {
             new LoadEntitiesFromProtobufFile(changesetZip).compute();
