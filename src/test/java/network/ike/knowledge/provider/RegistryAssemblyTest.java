@@ -72,6 +72,22 @@ class RegistryAssemblyTest {
 
         assertThat(result.loads()).as("load summaries").noneMatch(load ->
                 load.artifact().contains(ChronologyStoreAssembler.NOT_REGISTERED));
+
+        // What the store's manifest is to say about it: what opens it, its layout, and the
+        // assembly it holds, by the registration's identity.
+        assertThat(result.storeAttributes()).containsOnlyKeys(ChronologyStoreAssembler.OPEN_CONTROLLER,
+                ChronologyStoreAssembler.STORE_LAYOUT, ChronologyStoreAssembler.ENTITY_FORMAT,
+                ChronologyStoreAssembler.ASSEMBLY_IDENTITY);
+        assertThat(result.storeAttributes().get(ChronologyStoreAssembler.OPEN_CONTROLLER))
+                .isEqualTo(System.getProperty(ChronologyStoreAssembler.STORE_CONTROLLER_PROPERTY, "Open SpinedArrayStore"));
+        assertThat(result.storeAttributes().get(ChronologyStoreAssembler.ASSEMBLY_IDENTITY))
+                .isEqualTo(Registry.assemblyRegistrationUuid(List.of(
+                        new Registry.AssemblyInput("PB", "ike-starter-set-unreasoned-pb.zip", Optional.empty(),
+                                Registry.checksum(starter)),
+                        new Registry.AssemblyInput("SOURCE", COORDINATE, Optional.of("20261001"), Registry.checksum(first)),
+                        new Registry.AssemblyInput("SOURCE", "release-1.txt", Optional.empty(), Registry.checksum(first)),
+                        new Registry.AssemblyInput("SOURCE", "release-2.txt", Optional.empty(),
+                                Registry.checksum(second)))).toString());
         UUID release = KernelPattern.RELEASE_REGISTRATION_PATTERN.publicId().asUuidArray()[0];
         UUID assembly = KernelPattern.ASSEMBLY_REGISTRATION_PATTERN.publicId().asUuidArray()[0];
         UUID exported = KernelPattern.EXPORT_REGISTRATION_PATTERN.publicId().asUuidArray()[0];

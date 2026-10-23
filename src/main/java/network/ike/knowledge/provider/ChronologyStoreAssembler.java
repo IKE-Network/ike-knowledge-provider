@@ -1,6 +1,7 @@
 package network.ike.knowledge.provider;
 
 import dev.ikm.tinkar.terms.KernelPattern;
+import dev.ikm.tinkar.common.id.impl.NidLayout;
 import dev.ikm.tinkar.common.service.CachingService;
 import dev.ikm.tinkar.common.service.EntityCountSummary;
 import dev.ikm.tinkar.common.service.PluggableService;
@@ -56,7 +57,9 @@ import java.util.zip.ZipInputStream;
  * moment a browser opens it, followed by the emptying of the inferred navigation of
  * every concept whose definition is retired, which the reasoner leaves as it was
  * (IKE-Network/ike-issues#1131). Assembling under a data-source directory (the install
- * directory) makes the result directly selectable.
+ * directory) makes the result directly selectable. The result reports what only the store's
+ * builder knows, for the manifest the goal writes into it: the controller that opens it, its
+ * nid layout and entity format, and the assembly registration it holds.
  *
  * <p>The view specification's resolution into coordinate records is the resolver
  * increment (IKE-Network/ike-issues#849); classification currently runs under the
@@ -74,6 +77,18 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
     public static final String STORE_CONTROLLER_PROPERTY = "ike.knowledge.storeController";
 
     private static final String DEFAULT_STORE_CONTROLLER = "Open SpinedArrayStore";
+
+    /** The manifest attribute naming the data-source controller that opens the store. */
+    static final String OPEN_CONTROLLER = "Ike-Open-Controller";
+
+    /** The manifest attribute naming the store's nid layout. */
+    static final String STORE_LAYOUT = "Ike-Store-Layout";
+
+    /** The manifest attribute holding the entity format the store writes. */
+    static final String ENTITY_FORMAT = "Ike-Entity-Format";
+
+    /** The manifest attribute holding the identity of the assembly registration the store holds. */
+    static final String ASSEMBLY_IDENTITY = "Ike-Assembly-Identity";
 
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
@@ -101,11 +116,15 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             List<LoadSummary> loads = new ArrayList<>();
             Optional<ClassificationSummary> classification;
             Optional<Path> reasonedPb;
+            // What only this implementation knows about the store, for its manifest.
+            java.util.Map<String, String> storeAttributes = new java.util.LinkedHashMap<>();
 
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-            PrimitiveData.selectControllerByName(System.getProperty(STORE_CONTROLLER_PROPERTY, DEFAULT_STORE_CONTROLLER));
+            String controller = System.getProperty(STORE_CONTROLLER_PROPERTY, DEFAULT_STORE_CONTROLLER);
+            PrimitiveData.selectControllerByName(controller);
             PrimitiveData.start();
+            storeAttributes.put(OPEN_CONTROLLER, controller);
             try {
                 // Loads run inside the bulk-load bracket; each source's importer in a bracket of its own.
                 int i = firstLoad;
@@ -193,12 +212,15 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 }
 
                 // What the knowledge base is made of, registered in it before it is exported.
-                Registry.registerAssembly(inputs.stream()
-                                .map(input -> new Registry.AssemblyInput(input.role().name(), artifact(input),
-                                        input.resolvedVersion(),
-                                        checksums.computeIfAbsent(input.path(), Registry::checksum)))
-                                .toList(),
-                        releases, classification.map(ClassificationSummary::service), java.time.Instant.now());
+                List<Registry.AssemblyInput> assemblyInputs = inputs.stream()
+                        .map(input -> new Registry.AssemblyInput(input.role().name(), artifact(input),
+                                input.resolvedVersion(),
+                                checksums.computeIfAbsent(input.path(), Registry::checksum)))
+                        .toList();
+                if (Registry.registerAssembly(assemblyInputs, releases, classification.map(ClassificationSummary::service),
+                        java.time.Instant.now()).isPresent()) {
+                    storeAttributes.put(ASSEMBLY_IDENTITY, Registry.assemblyRegistrationUuid(assemblyInputs).toString());
+                }
 
                 // The reasoned-pb export must see the classified store while it is
                 // still open: full standalone export, inferred semantics included
@@ -213,6 +235,9 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 } else {
                     reasonedPb = Optional.empty();
                 }
+                // The layout the open store activated, and the entity format it writes.
+                storeAttributes.put(STORE_LAYOUT, NidLayout.active().displayName());
+                storeAttributes.put(ENTITY_FORMAT, Byte.toString(NidLayout.active().entityFormat()));
             } finally {
                 PrimitiveData.stop();
             }
@@ -241,7 +266,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 }
             }
 
-            return new AssembleResult(loads, classification, Optional.of(report), reasonedPb);
+            return new AssembleResult(loads, classification, Optional.of(report), reasonedPb, storeAttributes);
         } catch (IOException e) {
             throw new UncheckedIOException("Knowledge-base assembly failed", e);
         }
