@@ -141,6 +141,18 @@ class StatedNavigationDeriverTest {
         assertFalse(children(KernelConcept.ROOT_VERTEX.nid()).isEmpty(), "the root has children");
     }
 
+    @Test
+    @DisplayName("A role concept's super role is its parent; its transitive marker is not")
+    void aPropertySetsSuperRoleIsAParent() {
+        // Part of is stated by a property set alone: a sub-role of Role type, transitive.
+        assertEquals(Set.of(KernelConcept.ROLE_TYPE.nid()), parents(IkeConcept.PART_OF.nid()),
+                "Part of's parent is its super role, as the classifier places it");
+        assertTrue(children(KernelConcept.ROLE_TYPE.nid()).contains(IkeConcept.PART_OF.nid()),
+                "Role type lists Part of among its children");
+        assertFalse(children(KernelConcept.TRANSITIVE_PROPERTY.nid()).contains(IkeConcept.PART_OF.nid()),
+                "the transitive marker is a characteristic of the role, not a role above it");
+    }
+
     private static Set<Long> parents(long conceptNid) {
         return field(conceptNid, 1);
     }

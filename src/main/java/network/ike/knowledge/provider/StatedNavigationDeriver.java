@@ -189,14 +189,23 @@ public final class StatedNavigationDeriver {
 
     /**
      * The parents a stated definition names: every concept reference inside a necessary
-     * set or a sufficient set, the concept itself excluded.
+     * set or a sufficient set, and, for a role concept, every super role its property set
+     * names — the classifier places a role concept under the concepts of its super roles,
+     * so the stated view does too. The concept itself is excluded, and so are a property
+     * set's transitive and reflexive markers, which are characteristics of the role, not
+     * roles above it.
      */
     static Set<Long> statedParents(long concept, DiTreeEntity definition) {
         Set<Long> parents = new TreeSet<>();
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
             long setMeaning = set.getMeaningNid();
-            if (setMeaning != KernelConcept.NECESSARY_SET.nid() && setMeaning != KernelConcept.SUFFICIENT_SET.nid()) {
+            boolean classSet = setMeaning == KernelConcept.NECESSARY_SET.nid()
+                    || setMeaning == KernelConcept.SUFFICIENT_SET.nid();
+            boolean propertySet = setMeaning == KernelConcept.PROPERTY_SET.nid()
+                    || setMeaning == KernelConcept.DATA_PROPERTY_SET.nid()
+                    || setMeaning == KernelConcept.INTERVAL_PROPERTY_SET.nid();
+            if (!classSet && !propertySet) {
                 continue;
             }
             for (EntityVertex connective : definition.successors(set)) {
@@ -208,13 +217,19 @@ public final class StatedNavigationDeriver {
                         continue;
                     }
                     Object reference = atom.propertyFast(KernelConcept.CONCEPT_REFERENCE);
-                    if (reference instanceof ConceptFacade facade && facade.nid() != concept) {
+                    if (reference instanceof ConceptFacade facade && facade.nid() != concept
+                            && !(propertySet && roleCharacteristic(facade.nid()))) {
                         parents.add(facade.nid());
                     }
                 }
             }
         }
         return parents;
+    }
+
+    /** Whether a property set's concept reference marks the role transitive or reflexive. */
+    private static boolean roleCharacteristic(long nid) {
+        return nid == KernelConcept.TRANSITIVE_PROPERTY.nid() || nid == KernelConcept.REFLEXIVE_PROPERTY.nid();
     }
 
     /**
