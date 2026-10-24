@@ -74,7 +74,7 @@ public final class ChronologyStoreVerifier implements KnowledgeVerifier {
             try {
                 CachingService.clearAll();
                 ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-                PrimitiveData.selectControllerByName("Open SpinedArrayStore");
+                PrimitiveData.selectControllerByName("Open 64-bit SpinedArrayStore");
                 PrimitiveData.start();
                 try {
                     loadBase(request.baseInputs(), storeRoot);
