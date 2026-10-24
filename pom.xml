@@ -100,7 +100,7 @@
              266 adds the SOURCE input, a release a knowledge importer writes into the store;
              267 the store attributes the result reports for the store's manifest
              (IKE-Network/ike-issues#1317). -->
-        <ike-knowledge-spi.version>267</ike-knowledge-spi.version>
+        <ike-knowledge-spi.version>269</ike-knowledge-spi.version>
         <!-- The IKE starter set every test of this module reads (IKE-Network/ike-issues#1123):
              its unreasoned export and its bindings, from starter-data-ws, which is built with
              this provider. Both live under the starter-set profile, off by default, so the
