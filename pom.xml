@@ -95,7 +95,6 @@
              both until the next train. A release pins the released engine it rides, as
              release 6 rode 1.127.6 (IKE-Network/ike-issues#1123). -->
         <chronology-store.version>1.127.7-SNAPSHOT</chronology-store.version>
-        <komet-sequential-store-plugin.version>1-SNAPSHOT</komet-sequential-store-plugin.version>
         <!-- ike-knowledge-spi 263 ships the change set services (ChangeSetInspector, Verifier,
              Expander, Compactor; IKE-Network/ike-issues#1275) beside the #951 verification contract;
              266 adds the SOURCE input, a release a knowledge importer writes into the store;
@@ -197,14 +196,6 @@
         <!-- Store providers at runtime scope; their classpath ServiceLoader
              registrations live in this module's META-INF/services (the engine
              providers declare services in module-info only). -->
-        <!-- The sequential store the assembler builds a reasoned-sa in (Komet's Maven download flow
-             opens those), a Komet plugin since it left tinkar-core (IKE-Network/ike-issues#1313). -->
-        <dependency>
-            <groupId>network.ike.komet</groupId>
-            <artifactId>komet-sequential-store-plugin</artifactId>
-            <version>${komet-sequential-store-plugin.version}</version>
-            <scope>runtime</scope>
-        </dependency>
         <!-- The memory-only store the merge, the export and the tests run on (IKE-Network/ike-issues#1313). -->
         <dependency>
             <groupId>dev.ikm.tinkar</groupId>

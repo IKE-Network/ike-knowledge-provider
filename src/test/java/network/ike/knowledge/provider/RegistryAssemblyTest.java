@@ -79,7 +79,7 @@ class RegistryAssemblyTest {
                 ChronologyStoreAssembler.STORE_LAYOUT, ChronologyStoreAssembler.ENTITY_FORMAT,
                 ChronologyStoreAssembler.ASSEMBLY_IDENTITY);
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.OPEN_CONTROLLER))
-                .isEqualTo(System.getProperty(ChronologyStoreAssembler.STORE_CONTROLLER_PROPERTY, "Open SpinedArrayStore"));
+                .isEqualTo(System.getProperty(ChronologyStoreAssembler.STORE_CONTROLLER_PROPERTY, ChronologyStoreAssembler.SPINED_ARRAY_CONTROLLER));
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.ASSEMBLY_IDENTITY))
                 .isEqualTo(Registry.assemblyRegistrationUuid(List.of(
                         new Registry.AssemblyInput("PB", "ike-starter-set-unreasoned-pb.zip", Optional.empty(),

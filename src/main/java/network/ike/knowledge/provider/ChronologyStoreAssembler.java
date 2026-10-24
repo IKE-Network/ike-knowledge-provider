@@ -48,8 +48,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Assembles a knowledge base in a Spined Array store (or the controller
- * {@value #STORE_CONTROLLER_PROPERTY} names) — the chronology-store
+ * Assembles a knowledge base in the 64-bit Spined Array store, or in a Rocks store when the
+ * knowledge base will not fit in the heap the Spined Array store needs, or in the store the
+ * controller {@value #STORE_CONTROLLER_PROPERTY} names ({@link #storeController}) — the chronology-store
  * {@link KnowledgeBaseAssembler}: an optional store-seed layer, ordered entity loads
  * inside the bulk-load bracket and source releases written by their knowledge importers, the stated navigation derived from the loaded stated
  * definitions ({@link StatedNavigationDeriver}), and, by default, a full classification
@@ -70,13 +71,37 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     private static final String DEFAULT_REASONER = "ElkSnomedReasonerService";
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ChronologyStoreAssembler.class);
+
     /**
-     * The system property naming the store controller to assemble in; the Spined Array store
-     * when it is unset. For measuring one store against another (IKE-Network/ike-issues#1301).
+     * The system property naming the store controller to assemble in, chosen by the size of
+     * the inputs when it is unset ({@link #storeController}). A Rocks knowledge base names
+     * {@value #ROCKS_CONTROLLER}; measuring one store against another names either
+     * (IKE-Network/ike-issues#1301).
      */
     public static final String STORE_CONTROLLER_PROPERTY = "ike.knowledge.storeController";
 
-    private static final String DEFAULT_STORE_CONTROLLER = "Open SpinedArrayStore";
+    /**
+     * The store a knowledge base is assembled in when it fits the heap (KEC 2026-10-23): the
+     * 64-bit Spined Array store, the fastest way to a protobuf export. The export is the
+     * lingua franca, neither 32- nor 64-bit; the store only builds it.
+     */
+    static final String SPINED_ARRAY_CONTROLLER = "Open 64-bit SpinedArrayStore";
+
+    /** The store a knowledge base too large for the heap is assembled in, holding its records on disk. */
+    static final String ROCKS_CONTROLLER = "Open Rocks KB";
+
+    /**
+     * Store bytes per uncompressed protobuf byte: SNOMED CT's 0.57 GB export fills a 1.02 GB
+     * 64-bit Spined Array store in entity format 3, rounded up for the arrays' own overhead.
+     */
+    static final double STORE_BYTES_PER_PB_BYTE = 2.0;
+
+    /**
+     * The share of the heap the Spined Array store may fill, which holds every record as a
+     * byte array on the heap; the rest is for the importers, the classifier and the indexes.
+     */
+    static final double STORE_SHARE_OF_HEAP = 0.5;
 
     /** The manifest attribute naming the data-source controller that opens the store. */
     static final String OPEN_CONTROLLER = "Ike-Open-Controller";
@@ -92,6 +117,70 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
+
+    /**
+     * The store to assemble in (KEC 2026-10-23): the one named, when one is; otherwise the
+     * 64-bit Spined Array store, unless the inputs' estimated store would fill more than
+     * {@link #STORE_SHARE_OF_HEAP} of the heap, when Rocks. The estimate counts the protobuf and
+     * change-set inputs; a source release is left out, since its size before import says little
+     * about the store's (GUDID's 0.4 GB release becomes a 3.3 GB export).
+     *
+     * @param inputs  the assembly's inputs
+     * @param named   the controller the build names, or null
+     * @param maxHeap the heap's limit, bytes
+     * @return the controller's name
+     */
+    static String storeController(List<ArtifactInput> inputs, String named, long maxHeap) {
+        if (named != null && !named.isBlank()) {
+            return named;
+        }
+        long estimate = estimatedStoreBytes(inputs);
+        long budget = (long) (maxHeap * STORE_SHARE_OF_HEAP);
+        if (estimate > budget) {
+            LOG.info("Assembling in a Rocks store: the inputs would fill an estimated {} MB of 64-bit Spined Array store, "
+                    + "more than half of the {} MB heap", estimate >> 20, maxHeap >> 20);
+            return ROCKS_CONTROLLER;
+        }
+        LOG.info("Assembling in a 64-bit Spined Array store: an estimated {} MB of store, within half of the {} MB heap",
+                estimate >> 20, maxHeap >> 20);
+        return SPINED_ARRAY_CONTROLLER;
+    }
+
+    /**
+     * The store bytes the protobuf and change-set inputs are estimated to fill: their
+     * uncompressed size times {@link #STORE_BYTES_PER_PB_BYTE}.
+     *
+     * @param inputs the assembly's inputs
+     * @return the estimate, bytes
+     */
+    static long estimatedStoreBytes(List<ArtifactInput> inputs) {
+        long uncompressed = 0;
+        for (ArtifactInput input : inputs) {
+            if (input.role() == ArtifactInput.Role.PB || input.role() == ArtifactInput.Role.CHANGESET) {
+                uncompressed += uncompressedSize(input.path());
+            }
+        }
+        return (long) (uncompressed * STORE_BYTES_PER_PB_BYTE);
+    }
+
+    /** The uncompressed size of a zip's entries, or the file's own size when it is not a readable zip. */
+    private static long uncompressedSize(Path file) {
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(file.toFile())) {
+            long total = 0;
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                long size = entries.nextElement().getSize();
+                total += Math.max(0, size);
+            }
+            return total;
+        } catch (IOException e) {
+            try {
+                return Files.size(file);
+            } catch (IOException unreadable) {
+                return 0;
+            }
+        }
+    }
 
     /** Creates the provider (ServiceLoader requirement). */
     public ChronologyStoreAssembler() {
@@ -121,7 +210,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
             CachingService.clearAll();
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-            String controller = System.getProperty(STORE_CONTROLLER_PROPERTY, DEFAULT_STORE_CONTROLLER);
+            String controller = storeController(inputs, System.getProperty(STORE_CONTROLLER_PROPERTY), Runtime.getRuntime().maxMemory());
             PrimitiveData.selectControllerByName(controller);
             PrimitiveData.start();
             storeAttributes.put(OPEN_CONTROLLER, controller);

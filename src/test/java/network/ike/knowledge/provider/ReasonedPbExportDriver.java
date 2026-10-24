@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * THROWAWAY bridge/diagnostic for IKE-Network/ike-issues#933 — produces a genuine
  * {@code reasoned-pb} of the IKE starter set by doing everything in ONE process on a
- * fresh SpinedArray store: load the unreasoned change set, run the ELK reasoner
+ * fresh 64-bit SpinedArray store: load the unreasoned change set, run the ELK reasoner
  * (SpinedArray supports the reasoner's parallel iteration), then export. Every entity
  * carries its own public id, so {@code EntityProvider.publicId(nid)} resolves each
  * exported entity — and each referenced entity — directly from the retrieved entity;
@@ -66,7 +66,7 @@ final class ReasonedPbExportDriver {
         Path storeRoot = Files.createTempDirectory("ike-reasoned-inproc");
         CachingService.clearAll();
         ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
-        PrimitiveData.selectControllerByName("Open SpinedArrayStore");
+        PrimitiveData.selectControllerByName("Open 64-bit SpinedArrayStore");
         PrimitiveData.start();
         try {
             EntityCountSummary loaded = new LoadEntitiesFromProtobufFile(changesetZip).compute();
