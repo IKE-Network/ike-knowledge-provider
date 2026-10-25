@@ -77,7 +77,9 @@ class RegistryAssemblyTest {
         // assembly it holds, by the registration's identity.
         assertThat(result.storeAttributes()).containsOnlyKeys(ChronologyStoreAssembler.OPEN_CONTROLLER,
                 ChronologyStoreAssembler.STORE_LAYOUT, ChronologyStoreAssembler.ENTITY_FORMAT,
-                ChronologyStoreAssembler.ASSEMBLY_IDENTITY);
+                ChronologyStoreAssembler.ASSEMBLY_IDENTITY, ChronologyStoreAssembler.STATED_AXIOM_BYTES);
+        // The starter set defines its concepts with stated axioms, so their size is above zero.
+        assertThat(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.STATED_AXIOM_BYTES))).isPositive();
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.OPEN_CONTROLLER))
                 .isEqualTo(System.getProperty(ChronologyStoreAssembler.STORE_CONTROLLER_PROPERTY, ChronologyStoreAssembler.SPINED_ARRAY_CONTROLLER));
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.ASSEMBLY_IDENTITY))

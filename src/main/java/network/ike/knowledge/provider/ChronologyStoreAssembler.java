@@ -115,8 +115,29 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
     /** The manifest attribute holding the identity of the assembly registration the store holds. */
     static final String ASSEMBLY_IDENTITY = "Ike-Assembly-Identity";
 
+    /**
+     * The manifest attribute holding the size of the store's stated axioms, bytes
+     * ({@link #statedAxiomBytes}): what the IKE Dashboard sizes a launch's room to classify by.
+     */
+    static final String STATED_AXIOM_BYTES = "Ike-Stated-Axiom-Bytes";
+
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
+
+    /**
+     * The size of the open store's stated axioms: the bytes of every semantic of the EL++ stated
+     * axioms pattern, all of its versions. The heap the reasoner needs is proportional to it (KEC,
+     * 2026-10-25), whichever store holds them, so the IKE Dashboard adds a share of it to the heap of
+     * a launch that may classify, where the store's database size says too little.
+     *
+     * @return the bytes
+     */
+    static long statedAxiomBytes() {
+        long[] total = {0};
+        EntityService.get().forEachSemanticOfPattern(KernelPattern.EL_PLUS_PLUS_STATED_AXIOMS_PATTERN.nid(),
+                semantic -> total[0] += semantic.getBytes().length);
+        return total[0];
+    }
 
     /**
      * The store to assemble in (KEC 2026-10-23): the one named, when one is; otherwise the
@@ -327,6 +348,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 // The layout the open store activated, and the entity format it writes.
                 storeAttributes.put(STORE_LAYOUT, NidLayout.active().displayName());
                 storeAttributes.put(ENTITY_FORMAT, Byte.toString(NidLayout.active().entityFormat()));
+                storeAttributes.put(STATED_AXIOM_BYTES, Long.toString(statedAxiomBytes()));
             } finally {
                 PrimitiveData.stop();
             }
