@@ -117,9 +117,16 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
 
     /**
      * The manifest attribute holding the size of the store's stated axioms, bytes
-     * ({@link #statedAxiomBytes}): what the IKE Dashboard sizes a launch's room to classify by.
+     * ({@link #statedAxiomBytes}): what the IKE Dashboard sizes the reasoner's heap by when the store was
+     * edited after its heap was measured.
      */
     static final String STATED_AXIOM_BYTES = "Ike-Stated-Axiom-Bytes";
+
+    /** The manifest attribute holding the live heap the store needs loaded, bytes, measured at assembly. */
+    static final String LOADED_HEAP_BYTES = "Ike-Loaded-Heap-Bytes";
+
+    /** The manifest attribute holding the live heap running the reasoner adds, bytes, measured at assembly. */
+    static final String REASONER_HEAP_BYTES = "Ike-Reasoner-Heap-Bytes";
 
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
@@ -127,8 +134,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
     /**
      * The size of the open store's stated axioms: the bytes of every semantic of the EL++ stated
      * axioms pattern, all of its versions. The heap the reasoner needs is proportional to it (KEC,
-     * 2026-10-25), whichever store holds them, so the IKE Dashboard adds a share of it to the heap of
-     * a launch that may classify, where the store's database size says too little.
+     * 2026-10-25), whichever store holds them, and the store's database size says too little about it.
      *
      * @return the bytes
      */
@@ -233,6 +239,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
             String controller = storeController(inputs, System.getProperty(STORE_CONTROLLER_PROPERTY), Runtime.getRuntime().maxMemory());
             PrimitiveData.selectControllerByName(controller);
+            Optional<HeapRecorder> heap = HeapRecorder.start();
             PrimitiveData.start();
             storeAttributes.put(OPEN_CONTROLLER, controller);
             try {
@@ -304,9 +311,19 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 // reasoner writes inferred navigation only (IKE-Network/ike-issues#1123).
                 StatedNavigationDeriver.derive(Coordinates.View.DefaultView());
 
+                // The live heap with the store loaded, then what the reasoner adds while it holds
+                // its model: measured here, so the store says up front what opening it needs.
+                heap.ifPresent(HeapRecorder::storeLoaded);
                 classification = request.classify()
-                        ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER)))
+                        ? Optional.of(classify(request.reasonerService().orElse(DEFAULT_REASONER), heap))
                         : Optional.empty();
+                heap.flatMap(HeapRecorder::measured).ifPresent(measured -> {
+                    storeAttributes.put(LOADED_HEAP_BYTES, Long.toString(measured.loadedHeap()));
+                    measured.reasonerHeap().ifPresent(bytes -> storeAttributes.put(REASONER_HEAP_BYTES, Long.toString(bytes)));
+                    LOG.info("Heap measured: {} MB live with the store loaded, {} MB more while the reasoner holds its model",
+                            measured.loadedHeap() >> 20, measured.reasonerHeap().map(bytes -> bytes >> 20)
+                                    .map(String::valueOf).orElse("no"));
+                });
                 if (classification.isPresent()) {
                     // The reasoner writes the concepts it classified; a concept whose
                     // definition is retired keeps the inferred parents it had
@@ -350,6 +367,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 storeAttributes.put(ENTITY_FORMAT, Byte.toString(NidLayout.active().entityFormat()));
                 storeAttributes.put(STATED_AXIOM_BYTES, Long.toString(statedAxiomBytes()));
             } finally {
+                heap.ifPresent(HeapRecorder::close);
                 PrimitiveData.stop();
             }
 
@@ -527,7 +545,7 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
      * Runs the full classification sequence and returns its summary. Derived semantics
      * (inferred axioms and inferred navigation) are written into the open store.
      */
-    private static ClassificationSummary classify(String reasonerName) {
+    private static ClassificationSummary classify(String reasonerName, Optional<HeapRecorder> heap) {
         List<ReasonerService> found = new ArrayList<>();
         PluggableService.load(ReasonerService.class).forEach(found::add);
         ReasonerService reasoner = found.stream()
@@ -551,8 +569,11 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
             reasoner.extractData(progress);
             reasoner.loadData(progress);
             reasoner.computeInferences(progress);
+            heap.ifPresent(HeapRecorder::reasonerHolding);
             reasoner.buildNecessaryNormalForm(progress);
+            heap.ifPresent(HeapRecorder::reasonerHolding);
             ClassifierResults results = reasoner.writeInferredResults(progress);
+            heap.ifPresent(HeapRecorder::reasonerHolding);
             return new ClassificationSummary(reasonerName,
                     results.getClassificationConceptSet().size(),
                     results.getConceptsWithInferredChanges().size(),

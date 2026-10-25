@@ -13,6 +13,7 @@ module network.ike.knowledge.provider {
     requires dev.ikm.tinkar.importer;
     requires org.eclipse.collections.api;
     requires org.slf4j;
+    requires jdk.jfr;
 
     provides network.ike.knowledge.spi.KnowledgeExporter
             with network.ike.knowledge.provider.ChronologyStoreExporter;
