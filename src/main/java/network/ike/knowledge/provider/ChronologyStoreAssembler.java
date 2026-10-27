@@ -128,6 +128,12 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
     /** The manifest attribute holding the live heap running the reasoner adds, bytes, measured at assembly. */
     static final String REASONER_HEAP_BYTES = "Ike-Reasoner-Heap-Bytes";
 
+    /**
+     * The manifest attribute holding the most running the reasoner may add, bytes, measured at assembly
+     * from every collection while it ran: an upper bound on {@link #REASONER_HEAP_BYTES}.
+     */
+    static final String REASONER_HEAP_UPPER_BYTES = "Ike-Reasoner-Heap-Upper-Bytes";
+
     /** Where a knowledge browser keeps its preferences, relative to the store root. */
     private static final String PREFERENCES = "preferences";
 
@@ -320,9 +326,13 @@ public final class ChronologyStoreAssembler implements KnowledgeBaseAssembler {
                 heap.flatMap(HeapRecorder::measured).ifPresent(measured -> {
                     storeAttributes.put(LOADED_HEAP_BYTES, Long.toString(measured.loadedHeap()));
                     measured.reasonerHeap().ifPresent(bytes -> storeAttributes.put(REASONER_HEAP_BYTES, Long.toString(bytes)));
-                    LOG.info("Heap measured: {} MB live with the store loaded, {} MB more while the reasoner holds its model",
-                            measured.loadedHeap() >> 20, measured.reasonerHeap().map(bytes -> bytes >> 20)
-                                    .map(String::valueOf).orElse("no"));
+                    measured.reasonerHeapUpperBound().ifPresent(bytes ->
+                            storeAttributes.put(REASONER_HEAP_UPPER_BYTES, Long.toString(bytes)));
+                    LOG.info("Heap measured: {} MB live with the store loaded, {} MB more while the reasoner holds its model"
+                                    + " (at most {} MB)",
+                            measured.loadedHeap() >> 20,
+                            measured.reasonerHeap().map(bytes -> bytes >> 20).map(String::valueOf).orElse("no"),
+                            measured.reasonerHeapUpperBound().map(bytes -> bytes >> 20).map(String::valueOf).orElse("no"));
                 });
                 if (classification.isPresent()) {
                     // The reasoner writes the concepts it classified; a concept whose

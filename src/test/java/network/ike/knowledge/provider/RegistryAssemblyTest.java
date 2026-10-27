@@ -78,12 +78,16 @@ class RegistryAssemblyTest {
         assertThat(result.storeAttributes()).containsOnlyKeys(ChronologyStoreAssembler.OPEN_CONTROLLER,
                 ChronologyStoreAssembler.STORE_LAYOUT, ChronologyStoreAssembler.ENTITY_FORMAT,
                 ChronologyStoreAssembler.ASSEMBLY_IDENTITY, ChronologyStoreAssembler.STATED_AXIOM_BYTES,
-                ChronologyStoreAssembler.LOADED_HEAP_BYTES, ChronologyStoreAssembler.REASONER_HEAP_BYTES);
+                ChronologyStoreAssembler.LOADED_HEAP_BYTES, ChronologyStoreAssembler.REASONER_HEAP_BYTES,
+                ChronologyStoreAssembler.REASONER_HEAP_UPPER_BYTES);
         // The starter set defines its concepts with stated axioms, so their size is above zero; the heap
-        // with it loaded, measured under Flight Recorder, is too, and the reasoner's is not negative.
+        // with it loaded, measured under Flight Recorder, is too, the reasoner's is not negative, and its
+        // upper bound is not below it.
         assertThat(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.STATED_AXIOM_BYTES))).isPositive();
         assertThat(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.LOADED_HEAP_BYTES))).isPositive();
         assertThat(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.REASONER_HEAP_BYTES))).isNotNegative();
+        assertThat(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.REASONER_HEAP_UPPER_BYTES)))
+                .isGreaterThanOrEqualTo(Long.parseLong(result.storeAttributes().get(ChronologyStoreAssembler.REASONER_HEAP_BYTES)));
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.OPEN_CONTROLLER))
                 .isEqualTo(System.getProperty(ChronologyStoreAssembler.STORE_CONTROLLER_PROPERTY, ChronologyStoreAssembler.SPINED_ARRAY_CONTROLLER));
         assertThat(result.storeAttributes().get(ChronologyStoreAssembler.ASSEMBLY_IDENTITY))
