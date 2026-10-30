@@ -27,18 +27,21 @@ import dev.ikm.tinkar.entity.transaction.Transaction;
 import dev.ikm.tinkar.terms.ConceptFacade;
 import dev.ikm.tinkar.terms.State;
 import org.eclipse.collections.api.factory.Lists;
+import org.eclipse.collections.api.factory.primitive.LongLists;
+import org.eclipse.collections.api.factory.primitive.LongObjectMaps;
+import org.eclipse.collections.api.factory.primitive.LongSets;
 import org.eclipse.collections.api.list.ImmutableList;
+import org.eclipse.collections.api.list.primitive.ImmutableLongList;
+import org.eclipse.collections.api.list.primitive.MutableLongList;
+import org.eclipse.collections.api.map.primitive.ImmutableLongObjectMap;
+import org.eclipse.collections.api.map.primitive.MutableLongObjectMap;
+import org.eclipse.collections.api.set.primitive.ImmutableLongSet;
+import org.eclipse.collections.api.set.primitive.MutableLongSet;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,6 +83,9 @@ public final class StatedNavigationDeriver {
 
     private static final Logger LOG = LoggerFactory.getLogger(StatedNavigationDeriver.class);
 
+    /** No semantic: nid 0 names nothing. */
+    private static final long NO_SEMANTIC = 0;
+
     /**
      * What one derivation did.
      *
@@ -117,38 +123,44 @@ public final class StatedNavigationDeriver {
         FieldOrder order = fieldOrder(calculator, navigationPatternNid);
         PublicId navigationPatternId = PrimitiveData.publicId(navigationPatternNid);
 
+        // Each concept's navigation follows from the two maps alone, so the concepts are read
+        // and written in parallel. Only minting is ordered: a concept without navigation gets
+        // its semantic's nid in concept order, so a store's nids, and the exports that follow
+        // them, are the same from one assembly to the next.
+        ImmutableLongList concepts = definitions.concepts();
+        ImmutableLongList existing = LongLists.immutable.of(IntStream.range(0, concepts.size()).parallel()
+                .mapToLong(index -> navigationSemanticNid(concepts.get(index), navigationPatternNid))
+                .toArray());
+        mintInConceptOrder(concepts, existing, navigationPatternId);
+
         Transaction transaction = Transaction.make("Stated navigation derivation");
         StampEntity<?> stamp = derivedContentStamp(transaction, view);
-        int updated = 0;
-        int created = 0;
-        for (long concept : definitions.concepts()) {
+        AtomicInteger updated = new AtomicInteger();
+        AtomicInteger created = new AtomicInteger();
+        IntStream.range(0, concepts.size()).parallel().forEach(index -> {
+            long concept = concepts.get(index);
             LongIdSet children = definitions.children(concept);
             LongIdSet parents = definitions.parents(concept);
             ImmutableList<Object> fields = order.fields(children, parents);
-            Optional<SemanticEntity<SemanticEntityVersion>> existing = EntityService.get()
-                    .semanticsForComponentOfPattern(concept, navigationPatternNid).findFirst();
-            if (existing.isEmpty()) {
+            long semanticNid = existing.get(index);
+            if (semanticNid == NO_SEMANTIC) {
                 transaction.addComponent(mint(concept, navigationPatternId, navigationPatternNid,
                         stamp.nid(), fields));
-                created++;
-            } else {
-                long semanticNid = existing.get().nid();
-                if (agrees(calculator.latest(semanticNid), order, children, parents)) {
-                    continue;
-                }
+                created.incrementAndGet();
+            } else if (!agrees(calculator.latest(semanticNid), order, children, parents)) {
                 SemanticRecord record = calculator.updateFields(semanticNid, fields, stamp.nid());
                 transaction.addComponent(record);
                 EntityService.get().putEntity(record);
-                updated++;
+                updated.incrementAndGet();
             }
-        }
+        });
         int emptied = emptyUndefined(calculator, definitions, navigationPatternNid, order, stamp, transaction);
-        if (updated > 0 || created > 0 || emptied > 0) {
+        if (updated.get() > 0 || created.get() > 0 || emptied > 0) {
             transaction.commit();
         } else {
             transaction.cancel();
         }
-        Summary summary = new Summary(definitions.concepts().size(), updated, created, emptied);
+        Summary summary = new Summary(concepts.size(), updated.get(), created.get(), emptied);
         LOG.info("Stated navigation derived for {} concepts: {} semantics updated,"
                         + " {} created, {} emptied for concepts without an active definition",
                 summary.conceptsConsidered(), summary.semanticsUpdated(), summary.semanticsCreated(),
@@ -195,8 +207,8 @@ public final class StatedNavigationDeriver {
      * set's transitive and reflexive markers, which are characteristics of the role, not
      * roles above it.
      */
-    static Set<Long> statedParents(long concept, DiTreeEntity definition) {
-        Set<Long> parents = new TreeSet<>();
+    static MutableLongSet statedParents(long concept, DiTreeEntity definition) {
+        MutableLongSet parents = LongSets.mutable.empty();
         EntityVertex root = definition.root();
         for (EntityVertex set : definition.successors(root)) {
             long setMeaning = set.getMeaningNid();
@@ -239,11 +251,11 @@ public final class StatedNavigationDeriver {
      */
     private static int emptyUndefined(ViewCalculator calculator, Definitions definitions, long navigationPatternNid,
                                       FieldOrder order, StampEntity<?> stamp, Transaction transaction) {
-        List<Long> undefined = new ArrayList<>();
+        MutableLongList undefined = LongLists.mutable.empty();
         calculator.forEachSemanticVersionOfPattern(navigationPatternNid,
                 (semanticVersion, patternVersion) -> {
                     if (!semanticVersion.active()
-                            || definitions.concepts().contains(semanticVersion.referencedComponentNid())) {
+                            || definitions.considers(semanticVersion.referencedComponentNid())) {
                         return;
                     }
                     ImmutableList<Object> fields = semanticVersion.fieldValues();
@@ -254,11 +266,11 @@ public final class StatedNavigationDeriver {
                     undefined.add(semanticVersion.nid());
                 });
         ImmutableList<Object> empty = order.fields(LongIds.set.empty(), LongIds.set.empty());
-        for (long semanticNid : undefined) {
+        undefined.forEach(semanticNid -> {
             SemanticRecord record = calculator.updateFields(semanticNid, empty, stamp.nid());
             transaction.addComponent(record);
             EntityService.get().putEntity(record);
-        }
+        });
         return undefined.size();
     }
 
@@ -289,15 +301,29 @@ public final class StatedNavigationDeriver {
     }
 
     private static boolean sameMembers(LongIdSet left, LongIdSet right) {
-        Set<Long> leftMembers = new HashSet<>();
-        for (long nid : left.toArray()) {
-            leftMembers.add(nid);
-        }
-        Set<Long> rightMembers = new HashSet<>();
-        for (long nid : right.toArray()) {
-            rightMembers.add(nid);
-        }
-        return leftMembers.equals(rightMembers);
+        return LongSets.immutable.of(left.toArray()).equals(LongSets.immutable.of(right.toArray()));
+    }
+
+    /** The nid of the concept's semantic of the navigation pattern, or {@link #NO_SEMANTIC}. */
+    private static long navigationSemanticNid(long concept, long navigationPatternNid) {
+        return EntityService.get().semanticsForComponentOfPattern(concept, navigationPatternNid).findFirst()
+                .map(SemanticEntity::nid).orElse(NO_SEMANTIC);
+    }
+
+    /**
+     * Mints, in concept order, the nid of the navigation semantic of every concept that has
+     * none, so the parallel pass that writes them finds each nid already assigned. Their UUIDs,
+     * which take a name-based hash each, are computed in parallel; only the minting is ordered.
+     */
+    private static void mintInConceptOrder(ImmutableLongList concepts, ImmutableLongList existing,
+                                           PublicId navigationPatternId) {
+        List<UUID> uuids = IntStream.range(0, concepts.size()).parallel()
+                .filter(index -> existing.get(index) == NO_SEMANTIC)
+                .mapToObj(index -> UuidT5Generator.singleSemanticUuid(navigationPatternId,
+                        PrimitiveData.publicId(concepts.get(index))))
+                .toList();
+        ScopedValue.where(SCOPED_PATTERN_PUBLICID_FOR_NID, navigationPatternId)
+                .run(() -> uuids.forEach(uuid -> PrimitiveData.nid(uuid)));
     }
 
     /**
@@ -330,58 +356,63 @@ public final class StatedNavigationDeriver {
         return record;
     }
 
-    private static long[] toArray(Set<Long> nids) {
-        if (nids == null) {
-            return new long[0];
-        }
-        long[] array = new long[nids.size()];
-        int index = 0;
-        for (long nid : nids) {
-            array[index++] = nid;
-        }
-        return array;
-    }
-
     /**
      * The stated definitions under a view: the concepts that have an active definition
      * or are named as a parent by one, with the parents each names and the children
      * that name it.
      *
-     * @param concepts         every defined or named concept, in nid order
-     * @param parentsByConcept the parents each defined concept names
+     * <p>The maps are built on one thread and frozen before the derivation reads them from many.
+     *
+     * @param concepts          every defined or named concept, in nid order
+     * @param parentsByConcept  the parents each defined concept names
      * @param childrenByConcept the concepts whose definitions name each parent
      */
-    record Definitions(Set<Long> concepts, Map<Long, Set<Long>> parentsByConcept,
-                       Map<Long, Set<Long>> childrenByConcept) {
+    record Definitions(ImmutableLongList concepts, ImmutableLongObjectMap<ImmutableLongSet> parentsByConcept,
+                       ImmutableLongObjectMap<ImmutableLongSet> childrenByConcept) {
 
         /** Reads the active stated definitions of the pattern under the calculator's view. */
         static Definitions read(ViewCalculator calculator, long statedPatternNid) {
-            Map<Long, Set<Long>> parentsByConcept = new HashMap<>();
-            Map<Long, Set<Long>> childrenByConcept = new HashMap<>();
+            MutableLongObjectMap<MutableLongSet> parentsByConcept = LongObjectMaps.mutable.empty();
+            MutableLongObjectMap<MutableLongSet> childrenByConcept = LongObjectMaps.mutable.empty();
             calculator.forEachSemanticVersionOfPattern(statedPatternNid,
                     (semanticVersion, patternVersion) -> {
                         if (!semanticVersion.active()) {
                             return;
                         }
                         long concept = semanticVersion.referencedComponentNid();
-                        Set<Long> parents = statedParents(concept,
+                        MutableLongSet parents = statedParents(concept,
                                 (DiTreeEntity) semanticVersion.fieldValues().get(0));
-                        parentsByConcept.computeIfAbsent(concept, key -> new TreeSet<>()).addAll(parents);
-                        for (long parent : parents) {
-                            childrenByConcept.computeIfAbsent(parent, key -> new TreeSet<>()).add(concept);
-                        }
+                        parentsByConcept.getIfAbsentPut(concept, LongSets.mutable::empty).addAll(parents);
+                        parents.forEach(parent ->
+                                childrenByConcept.getIfAbsentPut(parent, LongSets.mutable::empty).add(concept));
                     });
-            Set<Long> concepts = new TreeSet<>(parentsByConcept.keySet());
+            MutableLongSet concepts = LongSets.mutable.withAll(parentsByConcept.keySet());
             concepts.addAll(childrenByConcept.keySet());
-            return new Definitions(Collections.unmodifiableSet(concepts), parentsByConcept, childrenByConcept);
+            return new Definitions(LongLists.immutable.of(concepts.toSortedArray()),
+                    frozen(parentsByConcept), frozen(childrenByConcept));
+        }
+
+        private static ImmutableLongObjectMap<ImmutableLongSet> frozen(MutableLongObjectMap<MutableLongSet> map) {
+            MutableLongObjectMap<ImmutableLongSet> frozen = LongObjectMaps.mutable.ofInitialCapacity(map.size());
+            map.forEachKeyValue((key, set) -> frozen.put(key, set.toImmutable()));
+            return frozen.toImmutable();
+        }
+
+        /** Whether the concept has an active definition or is named as a parent by one. */
+        boolean considers(long concept) {
+            return parentsByConcept.containsKey(concept) || childrenByConcept.containsKey(concept);
         }
 
         LongIdSet parents(long concept) {
-            return LongIds.set.of(toArray(parentsByConcept.get(concept)));
+            return idSet(parentsByConcept.get(concept));
         }
 
         LongIdSet children(long concept) {
-            return LongIds.set.of(toArray(childrenByConcept.get(concept)));
+            return idSet(childrenByConcept.get(concept));
+        }
+
+        private static LongIdSet idSet(ImmutableLongSet nids) {
+            return nids == null ? LongIds.set.empty() : LongIds.set.of(nids.toSortedArray());
         }
     }
 
