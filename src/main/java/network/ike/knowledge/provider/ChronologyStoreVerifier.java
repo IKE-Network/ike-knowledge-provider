@@ -21,7 +21,6 @@ import dev.ikm.tinkar.common.service.PrimitiveData;
 import dev.ikm.tinkar.common.service.ServiceKeys;
 import dev.ikm.tinkar.common.service.ServiceProperties;
 import dev.ikm.tinkar.entity.EntityService;
-import dev.ikm.tinkar.entity.aggregator.DefaultEntityAggregator;
 import dev.ikm.tinkar.entity.load.LoadEntitiesFromProtobufFile;
 import dev.ikm.tinkar.entity.transform.EntityToTinkarSchemaTransformer;
 import network.ike.knowledge.spi.ArtifactInput;
@@ -36,6 +35,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The chronology-store {@link KnowledgeVerifier}: assembles a pristine throwaway store
@@ -163,32 +165,34 @@ public final class ChronologyStoreVerifier implements KnowledgeVerifier {
     /**
      * Sweeps every entity in the assembled store through the protobuf transform — the
      * serialization that resolves every reference — reporting each entity whose
-     * references do not fit, capped with a remainder count.
+     * references do not fit, capped with a remainder count. The sweep runs on the store's
+     * parallel scan, as the export's transform does: on a single thread it was the largest
+     * part of the round trip (105 s of 245 s for solor-gudid-kb's 76 M entities). Which
+     * entities fill the cap is therefore not fixed from run to run; the count is.
      *
      * @param findings the findings to append to
      */
     private static void checkFitReferences(List<Finding> findings) {
         EntityToTinkarSchemaTransformer transformer = EntityToTinkarSchemaTransformer.getInstance();
-        List<Finding> failures = new ArrayList<>();
-        long[] overflow = {0};
-        new DefaultEntityAggregator().aggregateEntities(entity -> {
+        Queue<Finding> failures = new ConcurrentLinkedQueue<>();
+        AtomicLong failed = new AtomicLong();
+        EntityService.get().forEachEntityParallel(entity -> {
             try {
                 transformer.transform(entity);
             } catch (RuntimeException e) {
-                if (failures.size() < FINDING_CAP) {
+                if (failed.getAndIncrement() < FINDING_CAP) {
                     failures.add(new Finding(Finding.Severity.ERROR,
                             VerifyRequest.Check.FIT_REFERENCES,
                             entity.getClass().getSimpleName() + " " + entity.publicId(),
                             "Reference does not resolve within the artifact plus declared base: " + e));
-                } else {
-                    overflow[0]++;
                 }
             }
         });
         findings.addAll(failures);
-        if (overflow[0] > 0) {
+        long overflow = failed.get() - FINDING_CAP;
+        if (overflow > 0) {
             findings.add(new Finding(Finding.Severity.ERROR, VerifyRequest.Check.FIT_REFERENCES,
-                    "(aggregate)", overflow[0] + " further entities with unresolvable references"
+                    "(aggregate)", overflow + " further entities with unresolvable references"
                     + " beyond the first " + FINDING_CAP));
         }
     }
