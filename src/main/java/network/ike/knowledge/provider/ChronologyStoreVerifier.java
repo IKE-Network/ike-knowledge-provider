@@ -76,6 +76,8 @@ public final class ChronologyStoreVerifier implements KnowledgeVerifier {
             try {
                 CachingService.clearAll();
                 ServiceProperties.set(ServiceKeys.DATA_STORE_ROOT, storeRoot.toFile());
+                // The checks never search, and the store is deleted after them: no index.
+                ServiceProperties.set(ServiceKeys.SEARCH_DISABLED, true);
                 PrimitiveData.selectControllerByName("Open 64-bit SpinedArrayStore");
                 PrimitiveData.start();
                 try {
@@ -95,6 +97,7 @@ public final class ChronologyStoreVerifier implements KnowledgeVerifier {
                     }
                 } finally {
                     PrimitiveData.stop();
+                    ServiceProperties.set(ServiceKeys.SEARCH_DISABLED, false);
                 }
             } finally {
                 ChronologyStoreAssembler.deleteRecursively(storeRoot);

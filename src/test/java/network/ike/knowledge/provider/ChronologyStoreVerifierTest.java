@@ -1,5 +1,7 @@
 package network.ike.knowledge.provider;
 
+import dev.ikm.tinkar.common.service.ServiceKeys;
+import dev.ikm.tinkar.common.service.ServiceProperties;
 import network.ike.knowledge.spi.Finding;
 import network.ike.knowledge.spi.VerifyReport;
 import network.ike.knowledge.spi.VerifyRequest;
@@ -13,12 +15,14 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The round trip a knowledge base's build runs on its export: the artifact loads into a pristine
  * store and every entity survives the protobuf transform. The IKE starter set is standalone, so
- * it passes both checks with no finding but the load's own report.
+ * it passes both checks with no finding but the load's own report. The checks never search, so
+ * the store they open builds no search index, and the next store this JVM opens builds one again.
  */
 class ChronologyStoreVerifierTest {
 
@@ -36,5 +40,7 @@ class ChronologyStoreVerifierTest {
         assertEquals(Finding.Severity.INFO, presence.severity());
         assertEquals(VerifyRequest.Check.PRESENCE, presence.check());
         assertTrue(presence.message().contains("manifest counts exact"), presence.message());
+        assertFalse(ServiceProperties.get(ServiceKeys.SEARCH_DISABLED, false),
+                "the next store this JVM opens has its search service again");
     }
 }
